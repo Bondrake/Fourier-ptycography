@@ -1,0 +1,4 @@
+
+cd C:\Program Files\RawTherapee\5.11
+
+rawtherapee-cli -o c:\output -p 3000crop_amaze_RGB_30NR.pp3 -t -c e:\DCIM\133_PANA\*.rw2
