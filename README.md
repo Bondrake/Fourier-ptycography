@@ -1,1 +1,1 @@
-![alt text](https://github.com/benkrasnow/Fourier-ptycography/blob/main/USAF target comparison final.jpg.jpg?raw=true)
+![alt text](https://github.com/benkrasnow/Fourier-ptycography/blob/main/USAF_target_comparison_final.jpg.jpg?raw=true)
