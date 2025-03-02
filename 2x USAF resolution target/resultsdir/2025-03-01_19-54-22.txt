@@ -1,0 +1,33 @@
+n1 = 3000
+n2 = 3000
+lambda = 0.5195
+NA = 0.085
+mag = 2.08
+dpix_c = 3.76
+Np = 400
+ds_led = 2000
+decimation_led = 2
+z_led = 67500
+dia_led = 30
+lit_cenv = 40
+lit_cenh = 31
+Nled = 177
+Synthetic NA = 0.48112
+
+Synthetic NA
+
+| iter |  rmse    |
+--------------------
+|  0   | Inf |
+|  1   | 6.24e+07 |
+|  2   | 4.43e+07 |
+|  3   | 4.11e+07 |
+|  4   | 3.94e+07 |
+|  5   | 3.85e+07 |
+|  6   | 3.78e+07 |
+|  7   | 3.73e+07 |
+|  8   | 3.69e+07 |
+|  9   | 3.65e+07 |
+| 10   | 3.62e+07 |
+elapsed time: 357 seconds
+
