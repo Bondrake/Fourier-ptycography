@@ -22,9 +22,9 @@ import processing.serial.*;
 final int MATRIX_WIDTH = 64;
 final int MATRIX_HEIGHT = 64;
 final int CELL_SIZE = 8;
-final int GRID_PADDING_LEFT = 240;
+final int GRID_PADDING_LEFT = 290;  // Increased to account for wider info panel
 final int GRID_PADDING_TOP = 50;
-final int INFO_PANEL_WIDTH = 220;
+final int INFO_PANEL_WIDTH = 275;   // Increased by about 25%
 final int CONTROL_PANEL_HEIGHT = 200;
 
 // Pattern types
@@ -101,8 +101,8 @@ ControlP5 cp5;
 Accordion accordion;
 
 void setup() {
-  // Create window with appropriate size
-  size(1080, 760);
+  // Create window with appropriate size - increased height by 300 pixels
+  size(1080, 1060);
   
   // Initialize the pattern arrays
   ledPattern = new boolean[MATRIX_HEIGHT][MATRIX_WIDTH];
@@ -182,7 +182,8 @@ void drawInfoPanel() {
   
   // Start position for information display (below accordion controls)
   // With SINGLE collapse mode, only one panel will be open at a time, so we can start lower
-  int yPos = 280;
+  // Moved further down to accommodate taller control panels
+  int yPos = 400;
   
   // SECTION: Status Information
   drawSectionHeader("STATUS", yPos);
@@ -408,14 +409,14 @@ void setupUI() {
   cp5 = new ControlP5(this);
   
   // Constants for UI layout
-  final int GROUP_WIDTH = 200;
+  final int GROUP_WIDTH = INFO_PANEL_WIDTH - 20;  // Make group width match info panel width
   final int CONTROL_MARGIN = 10;
   final int BAR_HEIGHT = 20;
   
-  // Calculate heights for each group
-  final int PATTERN_GROUP_HEIGHT = 190;  // Increased height for pattern group
-  final int CONTROL_GROUP_HEIGHT = 140;  // Increased height for control group
-  final int HARDWARE_GROUP_HEIGHT = 220; // Increased height for hardware group
+  // Calculate heights for each group - increased as requested
+  final int PATTERN_GROUP_HEIGHT = 270;  // Increased by 80 pixels
+  final int CONTROL_GROUP_HEIGHT = 180;  // Increased by 40 pixels
+  final int HARDWARE_GROUP_HEIGHT = 300; // Increased by 80 pixels
   
   // Calculate spacing between groups in accordion mode
   final int GROUP_SPACING = BAR_HEIGHT + 5;
@@ -444,15 +445,23 @@ void setupUI() {
     .setBackgroundHeight(HARDWARE_GROUP_HEIGHT)
     .setBarHeight(BAR_HEIGHT);
     
+  // Add a title for Pattern group
+  cp5.addTextlabel("patternTitle")
+    .setText("Select Pattern Type:")
+    .setPosition(CONTROL_MARGIN, 10)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(patternGroup);
+    
   // Add controls to pattern group with better spacing
   cp5.addRadioButton("patternTypeRadio")
-    .setPosition(CONTROL_MARGIN, 10)
-    .setSize(18, 18)
+    .setPosition(CONTROL_MARGIN, 40)  // Moved down to make room for title
+    .setSize(20, 20)   // Larger radio buttons
     .setColorForeground(color(120))
     .setColorActive(color(0, 255, 0))
     .setColorLabel(color(255))
     .setItemsPerRow(1)
-    .setSpacingRow(6)
+    .setSpacingRow(15) // Increased spacing between radio buttons
     .addItem("Concentric Rings", PATTERN_CONCENTRIC_RINGS)
     .addItem("Center Only", PATTERN_CENTER_ONLY)
     .addItem("Spiral", PATTERN_SPIRAL)
@@ -460,9 +469,17 @@ void setupUI() {
     .activate(PATTERN_CONCENTRIC_RINGS)
     .moveTo(patternGroup);
     
+  // Add a title for the sliders
+  cp5.addTextlabel("slidersTitle")
+    .setText("Adjust Pattern Parameters:")
+    .setPosition(CONTROL_MARGIN, 150)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(patternGroup);
+    
   // Add sliders for ring radii - increased spacing between controls
   cp5.addSlider("innerRingRadius")
-    .setPosition(CONTROL_MARGIN, 105)
+    .setPosition(CONTROL_MARGIN, 180)
     .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
     .setRange(5, 30)
     .setValue(16)
@@ -470,7 +487,7 @@ void setupUI() {
     .moveTo(patternGroup);
     
   cp5.addSlider("middleRingRadius")
-    .setPosition(CONTROL_MARGIN, 130)
+    .setPosition(CONTROL_MARGIN, 210)
     .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
     .setRange(10, 40)
     .setValue(24)
@@ -478,7 +495,7 @@ void setupUI() {
     .moveTo(patternGroup);
     
   cp5.addSlider("outerRingRadius")
-    .setPosition(CONTROL_MARGIN, 155)
+    .setPosition(CONTROL_MARGIN, 240)
     .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
     .setRange(15, 31)
     .setValue(31)
@@ -486,7 +503,7 @@ void setupUI() {
     .moveTo(patternGroup);
     
   cp5.addSlider("targetLedSpacingMM")
-    .setPosition(CONTROL_MARGIN, 180)
+    .setPosition(CONTROL_MARGIN, 270)
     .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
     .setRange(2, 6)
     .setValue(4)
@@ -496,78 +513,124 @@ void setupUI() {
   // Add control buttons with more consistent spacing
   int buttonWidth = (GROUP_WIDTH - CONTROL_MARGIN*3) / 2;
   
-  cp5.addButton("startButton")
+  // Add a title for Controls group
+  cp5.addTextlabel("controlsTitle")
+    .setText("Sequence Controls:")
     .setPosition(CONTROL_MARGIN, 10)
-    .setSize(buttonWidth, 20)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(controlGroup);
+  
+  // First row of buttons - larger and more spaced
+  cp5.addButton("startButton")
+    .setPosition(CONTROL_MARGIN, 40)
+    .setSize(buttonWidth, 30)
     .setLabel("Start")
+    .setColorBackground(color(0, 120, 0))
     .moveTo(controlGroup);
     
   cp5.addButton("pauseButton")
-    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 10)
-    .setSize(buttonWidth, 20)
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 40)
+    .setSize(buttonWidth, 30)
     .setLabel("Pause")
+    .setColorBackground(color(120, 120, 0))
     .moveTo(controlGroup);
     
+  // Second row of buttons
   cp5.addButton("stopButton")
-    .setPosition(CONTROL_MARGIN, 40)
-    .setSize(buttonWidth, 20)
+    .setPosition(CONTROL_MARGIN, 80)
+    .setSize(buttonWidth, 30)
     .setLabel("Stop")
+    .setColorBackground(color(120, 0, 0))
     .moveTo(controlGroup);
     
   cp5.addButton("regenerateButton")
-    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 40)
-    .setSize(buttonWidth, 20)
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 80)
+    .setSize(buttonWidth, 30)
     .setLabel("Regenerate")
     .moveTo(controlGroup);
+  
+  // Settings title  
+  cp5.addTextlabel("settingsTitle")
+    .setText("Settings:")
+    .setPosition(CONTROL_MARGIN, 120)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(controlGroup);
     
+  // Toggles for settings
   cp5.addToggle("idleToggle")
-    .setPosition(CONTROL_MARGIN, 70)
-    .setSize(buttonWidth, 20)
+    .setPosition(CONTROL_MARGIN, 150)
+    .setSize(buttonWidth, 25)
     .setLabel("Idle Mode")
     .setValue(false)
     .moveTo(controlGroup);
     
   cp5.addToggle("gridToggle")
-    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 70)
-    .setSize(buttonWidth, 20)
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 150)
+    .setSize(buttonWidth, 25)
     .setLabel("Show Grid")
     .setValue(true)
     .moveTo(controlGroup);
     
+  // Interval slider
   cp5.addSlider("updateInterval")
-    .setPosition(CONTROL_MARGIN, 110)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
+    .setPosition(CONTROL_MARGIN, 190)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 20)
     .setRange(100, 2000)
     .setValue(500)
     .setLabel("Update Interval (ms)")
     .moveTo(controlGroup);
     
   // Add hardware controls with better spacing
-  cp5.addToggle("simulationToggle")
+  
+  // Add a title for Hardware group
+  cp5.addTextlabel("hardwareTitle")
+    .setText("Hardware Configuration:")
     .setPosition(CONTROL_MARGIN, 10)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 20)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(hardwareGroup);
+  
+  // Mode selection toggle
+  cp5.addToggle("simulationToggle")
+    .setPosition(CONTROL_MARGIN, 40)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 30)
     .setLabel("Simulation Mode")
     .setValue(true)
     .moveTo(hardwareGroup);
     
+  // Connection section
+  cp5.addTextlabel("connectionTitle")
+    .setText("Arduino Connection:")
+    .setPosition(CONTROL_MARGIN, 90)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(hardwareGroup);
+    
+  // Serial port selection
   cp5.addScrollableList("serialPortsList")
-    .setPosition(CONTROL_MARGIN, 50)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 100)
-    .setBarHeight(20)
-    .setItemHeight(20)
+    .setPosition(CONTROL_MARGIN, 120)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 120)
+    .setBarHeight(25)
+    .setItemHeight(25)
     .setLabel("Serial Port")
     .moveTo(hardwareGroup);
     
+  // Connection button
   cp5.addButton("connectButton")
-    .setPosition(CONTROL_MARGIN, 170)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 20)
+    .setPosition(CONTROL_MARGIN, 250)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 30)
     .setLabel("Connect to Hardware")
+    .setColorBackground(color(0, 0, 120))
     .moveTo(hardwareGroup);
     
+  // Upload button  
   cp5.addButton("uploadPatternButton")
-    .setPosition(CONTROL_MARGIN, 200)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 20)
+    .setPosition(CONTROL_MARGIN, 290)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 30)
     .setLabel("Upload Pattern to Hardware")
+    .setColorBackground(color(0, 120, 120))
     .moveTo(hardwareGroup);
     
   // Create accordion
