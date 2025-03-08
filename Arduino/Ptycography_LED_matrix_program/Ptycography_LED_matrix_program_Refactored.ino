@@ -18,66 +18,20 @@
  */
 
 // Include all the module headers
+#define ARDUINO  // Ensure ARDUINO is defined for conditional compilation
+
+// Include the centralized configuration
+#include "libraries/PtycographyConfig.h"
+
+// Include module headers
 #include "libraries/LEDMatrix/LEDMatrix.h"
 #include "libraries/PatternGenerator/PatternGenerator.h"
 #include "libraries/IdleManager/IdleManager.h"
 #include "libraries/VisualizationManager/VisualizationManager.h"
 #include "libraries/SerialCommandManager/SerialCommandManager.h"
 
-// Configuration parameters
-#define USE_COLOR 2      // 0 = off, 1 = red, 2 = green, 4 = blue. Can be combined with bitwise OR
-#define NUMBER_CYCLES 1  // Repeat the entire illumination sequence this many times
-#define POSTFRAME_DELAY 1500  // Delay in milliseconds after each frame
-#define PREFRAME_DELAY 400    // Delay in milliseconds before each frame - needed for camera autoexposure
-#define TRIG_PHOTO 1     // 1 = trigger the camera shutter for each frame, 0 = no triggering
-
 // Default pattern type (can be changed at runtime)
 #define DEFAULT_PATTERN_TYPE PATTERN_CONCENTRIC_RINGS // PATTERN_CENTER_ONLY, PATTERN_CONCENTRIC_RINGS
-
-// Serial communication settings
-#define SERIAL_TIMEOUT 5000   // Timeout for serial operations in milliseconds
-#define SERIAL_RETRIES 3      // Number of retries for serial operations
-#define ENABLE_ERROR_LOG 1    // 1 = enable detailed error logging, 0 = disable
-
-// Physical properties of the LED matrix
-#define MATRIX_PHYSICAL_SIZE_MM 128.0  // Physical size of matrix in mm (64 LEDs at 2mm spacing)
-#define LED_PITCH_MM 2.0               // Physical spacing between adjacent LEDs in mm
-
-// Pattern configuration for concentric rings
-#define INNER_RING_RADIUS 27           // Inner ring radius in LED units
-#define MIDDLE_RING_RADIUS 37          // Middle ring radius in LED units
-#define OUTER_RING_RADIUS 47           // Outer ring radius in LED units
-#define TARGET_LED_SPACING_MM 4.0      // Desired physical spacing between illuminated LEDs in mm
-
-// Timing constants
-#define SERIAL_BAUD_RATE 9600      // Serial communication speed
-#define SETUP_DELAY 2000           // Delay on startup in milliseconds
-#define CAMERA_PULSE_WIDTH 100     // Camera trigger pulse width in milliseconds
-#define LED_UPDATE_INTERVAL 10000  // LED refresh rate in microseconds (10ms = 100Hz)
-#define IDLE_TIMEOUT 1800000       // Idle timeout in milliseconds (30 minutes)
-#define IDLE_BLINK_INTERVAL 60000  // Interval for LED blink in idle mode (1 minute)
-#define IDLE_BLINK_DURATION 500    // Duration of LED blink in idle mode (milliseconds)
-#define VIS_UPDATE_INTERVAL 100    // Update visualization data every 100ms
-
-// LED Matrix Pin Definitions
-// These pins control the 64x64 RGB LED matrix
-#define PIN_LED_BL 25  // Blank control
-#define PIN_LED_CK 26  // Clock signal
-#define PIN_LED_A2 27  // Address bit A2
-#define PIN_LED_A0 28  // Address bit A0
-#define PIN_LED_B1 29  // Blue data for second half of display
-#define PIN_LED_R1 30  // Red data for second half of display
-#define PIN_LED_B0 31  // Blue data for first half of display
-#define PIN_LED_R0 32  // Red data for first half of display
-#define PIN_LED_LA 42  // Latch control
-#define PIN_LED_A3 43  // Address bit A3
-#define PIN_LED_A1 44  // Address bit A1
-#define PIN_LED_A4 45  // Address bit A4
-#define PIN_LED_G1 46  // Green data for second half of display
-#define PIN_LED_G0 47  // Green data for first half of display
-
-// Camera control pin
-#define PIN_PHOTO_TRIGGER 5  // Pin used to trigger camera shutter
 
 // Error handling variables
 enum ErrorCode {

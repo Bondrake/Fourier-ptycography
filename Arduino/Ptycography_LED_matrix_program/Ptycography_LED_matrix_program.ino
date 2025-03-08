@@ -12,34 +12,14 @@
  * - Send 'a' over serial (or any other character) to exit idle mode
  */
 
-// Matrix dimensions
-#define MATRIX_WIDTH 64
-#define MATRIX_HEIGHT 64
-#define MATRIX_HALF_HEIGHT 32  // Half height for split panel addressing
+#define ARDUINO  // Ensure ARDUINO is defined for conditional compilation
 
-// Configuration parameters
-#define USE_COLOR 2      // 0 = off, 1 = red, 2 = green, 4 = blue. Can be combined with bitwise OR
-#define NUMBER_CYCLES 1  // Repeat the entire illumination sequence this many times
-#define POSTFRAME_DELAY 1500  // Delay in milliseconds after each frame
-#define PREFRAME_DELAY 400    // Delay in milliseconds before each frame - needed for camera autoexposure
-#define TRIG_PHOTO 1     // 1 = trigger the camera shutter for each frame, 0 = no triggering
+// Include the centralized configuration
+#include "libraries/PtycographyConfig.h"
+
+// Additional configuration specific to the original implementation
 #define CENTER_ONLY 0    // 1 = use only the LEDcenter matrix pattern, 0 = use full LEDpattern
 #define VISUALIZATION_MODE 0  // 1 = send matrix data to visualization tool, 0 = normal operation
-
-// Serial communication settings
-#define SERIAL_TIMEOUT 5000   // Timeout for serial operations in milliseconds
-#define SERIAL_RETRIES 3      // Number of retries for serial operations
-#define ENABLE_ERROR_LOG 1    // 1 = enable detailed error logging, 0 = disable
-
-// Physical properties of the LED matrix
-#define MATRIX_PHYSICAL_SIZE_MM 128.0  // Physical size of matrix in mm (64 LEDs at 2mm spacing)
-#define LED_PITCH_MM 2.0               // Physical spacing between adjacent LEDs in mm
-
-// Pattern configuration
-#define INNER_RING_RADIUS 27           // Inner ring radius in LED units
-#define MIDDLE_RING_RADIUS 37          // Middle ring radius in LED units
-#define OUTER_RING_RADIUS 47           // Outer ring radius in LED units
-#define TARGET_LED_SPACING_MM 4.0      // Desired physical spacing between illuminated LEDs in mm
 
 // Derived values - calculated in setup()
 int LED_SKIP;                          // Number of LEDs to skip to achieve desired spacing

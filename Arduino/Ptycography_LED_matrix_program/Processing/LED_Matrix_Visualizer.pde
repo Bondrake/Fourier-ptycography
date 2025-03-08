@@ -12,23 +12,27 @@
  * Press 'g' to toggle grid lines
  */
 
-// Matrix dimensions
-final int MATRIX_WIDTH = 64;
-final int MATRIX_HEIGHT = 64;
+// Import configuration values from shared configuration class
+// This ensures consistency between Arduino and Processing
+import java.io.File;
 
-// Display settings
-final int CELL_SIZE = 8;          // Size of each LED in pixels 
-final int GRID_PADDING_LEFT = 240; // Left padding for grid (moved to the right)
-final int GRID_PADDING_TOP = 50;   // Top padding for grid
-final int INFO_PANEL_WIDTH = 220;  // Width of the info panel on the left
-boolean showGrid = true;           // Whether to show grid lines
+// Matrix dimensions (from configuration)
+final int MATRIX_WIDTH = PtycographyConfig.MATRIX_WIDTH;
+final int MATRIX_HEIGHT = PtycographyConfig.MATRIX_HEIGHT;
 
-// Pattern settings (same as Arduino code)
-final int INNER_RING_RADIUS = 27;
-final int MIDDLE_RING_RADIUS = 37;  
-final int OUTER_RING_RADIUS = 47;
-final float LED_PITCH_MM = 2.0;
-final float TARGET_LED_SPACING_MM = 4.0;
+// Display settings (from configuration)
+final int CELL_SIZE = PtycographyConfig.CELL_SIZE;
+final int GRID_PADDING_LEFT = PtycographyConfig.GRID_PADDING_LEFT;
+final int GRID_PADDING_TOP = PtycographyConfig.GRID_PADDING_TOP;
+final int INFO_PANEL_WIDTH = PtycographyConfig.INFO_PANEL_WIDTH;
+boolean showGrid = true;    // Whether to show grid lines (runtime setting)
+
+// Pattern settings (from configuration)
+final int INNER_RING_RADIUS = PtycographyConfig.INNER_RING_RADIUS;
+final int MIDDLE_RING_RADIUS = PtycographyConfig.MIDDLE_RING_RADIUS;
+final int OUTER_RING_RADIUS = PtycographyConfig.OUTER_RING_RADIUS;
+final float LED_PITCH_MM = PtycographyConfig.LED_PITCH_MM;
+final float TARGET_LED_SPACING_MM = PtycographyConfig.TARGET_LED_SPACING_MM;
 int LED_SKIP;                     // Will be calculated in setup
 
 // Color definitions
@@ -42,9 +46,10 @@ final color CYAN_COLOR = color(0, 255, 255);
 final color WHITE_COLOR = color(255, 255, 255);
 final color PATTERN_COLOR = color(0, 100, 0);
 
-final int COLOR_RED = 1;
-final int COLOR_GREEN = 2;
-final int COLOR_BLUE = 4;
+// Color constants (from configuration)
+final int COLOR_RED = PtycographyConfig.COLOR_RED;
+final int COLOR_GREEN = PtycographyConfig.COLOR_GREEN;
+final int COLOR_BLUE = PtycographyConfig.COLOR_BLUE;
 
 // Operation modes
 boolean simulationMode = true;    // true = simulation, false = hardware connection
@@ -313,13 +318,15 @@ void keyPressed() {
   // Send commands to Arduino in hardware mode
   if (!simulationMode && serialConnected) {
     if (key == 'v' || key == 'V') {
-      arduinoPort.write('v');  // Start visualization mode
+      arduinoPort.write(PtycographyConfig.CMD_VIS_START);  // Start visualization mode
     } else if (key == 'q' || key == 'Q') {
-      arduinoPort.write('q');  // Stop visualization mode
+      arduinoPort.write(PtycographyConfig.CMD_VIS_STOP);  // Stop visualization mode
     } else if (key == 'i' || key == 'I') {
-      arduinoPort.write('i');  // Enter idle mode
+      arduinoPort.write(PtycographyConfig.CMD_IDLE_ENTER);  // Enter idle mode
     } else if (key == 'a' || key == 'A') {
-      arduinoPort.write('a');  // Exit idle mode
+      arduinoPort.write(PtycographyConfig.CMD_IDLE_EXIT);  // Exit idle mode
+    } else if (key == 'p' || key == 'P') {
+      arduinoPort.write(PtycographyConfig.CMD_PATTERN_EXPORT);  // Export pattern
     }
   }
 }

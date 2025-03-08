@@ -97,7 +97,7 @@ bool PatternGenerator::generatePattern(bool** pattern, PatternType type) {
   switch (type) {
     case PATTERN_CONCENTRIC_RINGS:
       // Default values for concentric rings pattern
-      return generateConcentricRings(pattern, 27.0, 37.0, 47.0, 4.0);
+      return generateConcentricRings(pattern, 16.0, 24.0, 31.0, 4.0);
     
     case PATTERN_CENTER_ONLY:
       return generateCenterOnly(pattern);

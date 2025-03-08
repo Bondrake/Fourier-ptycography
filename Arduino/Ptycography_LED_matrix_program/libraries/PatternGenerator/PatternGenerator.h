@@ -9,14 +9,10 @@
 #define PATTERNGENERATOR_H
 
 #include <Arduino.h>
+#include "../PtycographyConfig.h"
 
-// Pattern types
-enum PatternType {
-  PATTERN_CONCENTRIC_RINGS,  // Concentric rings pattern (default)
-  PATTERN_CENTER_ONLY,       // Only the center LED
-  PATTERN_SPIRAL,            // Spiral pattern
-  PATTERN_GRID               // Rectangular grid pattern
-};
+// Pattern types are now defined in PtycographyConfig.h
+typedef int PatternType;
 
 class PatternGenerator {
   public:
