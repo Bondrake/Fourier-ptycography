@@ -10,11 +10,14 @@
  * Press 'p' to toggle between full pattern and center-only modes
  * Press space to pause/resume the animation
  * Press 'g' to toggle grid lines
+ * Press 'c' to regenerate config from Arduino header file
  */
 
 // Import configuration values from shared configuration class
 // This ensures consistency between Arduino and Processing
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 
 // Matrix dimensions (from configuration)
 final int MATRIX_WIDTH = PtycographyConfig.MATRIX_WIDTH;
@@ -102,6 +105,7 @@ void setup() {
   println("Press 'p' to toggle between full pattern and center-only modes");
   println("Press space to pause/resume the animation");
   println("Press 'g' to toggle grid lines");
+  println("Press 'c' to regenerate config from Arduino header file");
 }
 
 void draw() {
@@ -191,6 +195,7 @@ void drawModeIndicator() {
   text("p - Toggle pattern mode", 20, yOffset + 50);
   text("Space - Pause/resume", 20, yOffset + 75);
   text("g - Toggle grid", 20, yOffset + 100);
+  text("c - Regenerate config", 20, yOffset + 125);
 }
 
 void drawLEDMatrix() {
@@ -313,6 +318,13 @@ void keyPressed() {
   // Reinitialize patterns
   if (key == 'r' || key == 'R') {
     initializePatterns();
+  }
+  
+  // Regenerate configuration from Arduino header file
+  if (key == 'c' || key == 'C') {
+    println("\n--- Regenerating configuration from Arduino header file ---");
+    regenerateConfig();
+    println("Configuration regenerated. Please restart the Processing sketch to use the new values.");
   }
   
   // Send commands to Arduino in hardware mode
