@@ -22,9 +22,9 @@ import processing.serial.*;
 final int MATRIX_WIDTH = 64;
 final int MATRIX_HEIGHT = 64;
 final int CELL_SIZE = 8;
-final int GRID_PADDING_LEFT = 290;  // Increased to account for wider info panel
+final int GRID_PADDING_LEFT = 350;  // Increased to account for wider info panel
 final int GRID_PADDING_TOP = 50;
-final int INFO_PANEL_WIDTH = 275;   // Increased by about 25%
+final int INFO_PANEL_WIDTH = 330;   // Made even wider to accommodate side labels
 final int CONTROL_PANEL_HEIGHT = 200;
 
 // Pattern types
@@ -180,10 +180,8 @@ void drawInfoPanel() {
   stroke(100);
   line(10, 35, INFO_PANEL_WIDTH-10, 35);
   
-  // Start position for information display (below accordion controls)
-  // With SINGLE collapse mode, only one panel will be open at a time, so we can start lower
-  // Moved further down to accommodate taller control panels
-  int yPos = 400;
+  // Start position for information display - moved to the bottom of the panel
+  int yPos = height - 250;  // Start status section from the bottom
   
   // SECTION: Status Information
   drawSectionHeader("STATUS", yPos);
@@ -469,10 +467,10 @@ void setupUI() {
     .activate(PATTERN_CONCENTRIC_RINGS)
     .moveTo(patternGroup);
     
-  // Add a title for the sliders
+  // Add a title for the sliders - moved much lower to avoid overlap with radio buttons
   cp5.addTextlabel("slidersTitle")
     .setText("Adjust Pattern Parameters:")
-    .setPosition(CONTROL_MARGIN, 150)
+    .setPosition(CONTROL_MARGIN, 140)
     .setColorValue(color(220))
     .setFont(createFont("Arial", 14))
     .moveTo(patternGroup);
