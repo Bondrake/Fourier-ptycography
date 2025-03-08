@@ -219,9 +219,15 @@ void drawInfoPanel() {
     text("Hardware:", 20, yOffset);
     text(hardwareConnected ? "CONNECTED" : "DISCONNECTED", 120, yOffset);
     
-    if (hardwareConnected) {
+    if (hardwareConnected && arduinoPort != null) {
       text("Port:", 20, yOffset + 25);
-      text(arduinoPort.port.getName(), 120, yOffset + 25);
+      // Display the currently selected port name from the dropdown list
+      int portIndex = (int)cp5.get(ScrollableList.class, "serialPortsList").getValue();
+      if (portIndex >= 0 && portIndex < availablePorts.length) {
+        text(availablePorts[portIndex], 120, yOffset + 25);
+      } else {
+        text("Unknown", 120, yOffset + 25);
+      }
     }
   }
   
