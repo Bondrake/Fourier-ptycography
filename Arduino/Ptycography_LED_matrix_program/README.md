@@ -73,13 +73,13 @@ The central controller provides a comprehensive interface for:
 
 For detailed usage instructions, see `Processing/CentralController/README.md`.
 
-## Additional Tools
+## Focus on Central Control
 
-The repository includes several additional tools:
+This branch is focused exclusively on the central controller architecture:
 
-- **OriginalPatternVisualizer**: Displays the original LED pattern design
-- **ComparePatterns**: Compares original and updated pattern designs
-- **Pattern Documentation**: Explains the pattern design principles
+- **Single Control Interface**: The Processing central controller is the only interface needed
+- **Streamlined Approach**: All other visualizers and tools have been removed
+- **Pattern Documentation**: Available in the controller itself through its UI
 
 ## Documentation
 

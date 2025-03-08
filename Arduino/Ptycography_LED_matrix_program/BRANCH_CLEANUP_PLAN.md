@@ -27,13 +27,14 @@ This document outlines the plan for cleaning up the `processing-central-control`
 3. **`Processing/CentralController/README.md`**
    - Documentation for the central controller.
 
-### Visualization Tools
+### ~~Visualization Tools~~ (Removed)
 
-1. **`Processing/OriginalPatternVisualizer/`**
-   - Useful for visualizing the original pattern design.
+The separate visualization tools have been removed as they don't meet the project needs:
 
-2. **`Processing/ComparePatterns/`**
-   - Helps illustrate the difference between original and updated patterns.
+- ~~`Processing/OriginalPatternVisualizer/`~~
+- ~~`Processing/ComparePatterns/`~~
+
+Instead, all visualization is handled directly by the central controller.
 
 ### Configuration Files
 
