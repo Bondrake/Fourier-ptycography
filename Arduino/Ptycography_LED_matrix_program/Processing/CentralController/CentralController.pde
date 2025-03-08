@@ -480,46 +480,45 @@ void setupUI() {
   final int LABEL_OFFSET = 8;   // Space between slider and its label
   
   // Add sliders for ring radii - with narrower width to avoid label spillover
-  cp5.addSlider("innerRingRadius")
+  Slider innerSlider = cp5.addSlider("innerRingRadius")
     .setPosition(CONTROL_MARGIN, 180)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(5, 30)
     .setValue(16)
     .setLabel("Inner Ring Radius")
-    .setLabelVisible(true)
-    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
-    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
+  // Configure label after adding to group
+  innerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
     
-  cp5.addSlider("middleRingRadius")
+  Slider middleSlider = cp5.addSlider("middleRingRadius")
     .setPosition(CONTROL_MARGIN, 210)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(10, 40)
     .setValue(24)
     .setLabel("Middle Ring Radius")
-    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
-    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
+  // Configure label after adding to group
+  middleSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
     
-  cp5.addSlider("outerRingRadius")
+  Slider outerSlider = cp5.addSlider("outerRingRadius")
     .setPosition(CONTROL_MARGIN, 240)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(15, 31)
     .setValue(31)
     .setLabel("Outer Ring Radius")
-    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
-    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
+  // Configure label after adding to group
+  outerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
     
-  cp5.addSlider("targetLedSpacingMM")
+  Slider spacingSlider = cp5.addSlider("targetLedSpacingMM")
     .setPosition(CONTROL_MARGIN, 270)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(2, 6)
     .setValue(4)
     .setLabel("LED Spacing (mm)")
-    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
-    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
+  // Configure label after adding to group
+  spacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
     
   // Add control buttons with more consistent spacing
   int buttonWidth = (GROUP_WIDTH - CONTROL_MARGIN*3) / 2;
@@ -585,15 +584,15 @@ void setupUI() {
     .moveTo(controlGroup);
     
   // Interval slider - made narrower like pattern sliders
-  cp5.addSlider("updateInterval")
+  Slider intervalSlider = cp5.addSlider("updateInterval")
     .setPosition(CONTROL_MARGIN, 190)
     .setSize(SLIDER_WIDTH, 20)
     .setRange(100, 2000)
     .setValue(500)
     .setLabel("Update Interval (ms)")
-    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
-    .setPaddingX(LABEL_OFFSET)
     .moveTo(controlGroup);
+  // Configure label after adding to group
+  intervalSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
     
   // Add hardware controls with better spacing
   
