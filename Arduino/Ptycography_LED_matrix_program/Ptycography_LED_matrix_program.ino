@@ -1,10 +1,21 @@
-#define USE_COLOR 2  //0 = off   1= red   2 = green   4 = blue   Can be a combination of these values
-#define NUMBER_CYCLES 1  //repeat the whole sequence this many times
-#define POSTFRAME_DELAY 1500  //1500 delay in milliseconds after each frame
-#define PREFRAME_DELAY 400    // delay in milliseconds before each frame -- needed for camera autoexposure to function properly
-#define TRIG_PHOTO  1  //1 = trigger the camera shutter for each frame
-#define CENTER_ONLY  0 // 1 =  use the LEDcenter matrix only (show the center LED only)
+/**
+ * Ptycography LED Matrix Control Program
+ * 
+ * This program controls a 64x64 RGB LED matrix for Fourier ptycography imaging applications.
+ * It systematically illuminates LEDs in a specific pattern and can trigger a camera
+ * for each illumination to capture the resulting diffraction patterns.
+ */
 
+// Configuration parameters
+#define USE_COLOR 2      // 0 = off, 1 = red, 2 = green, 4 = blue. Can be combined with bitwise OR
+#define NUMBER_CYCLES 1  // Repeat the entire illumination sequence this many times
+#define POSTFRAME_DELAY 1500  // Delay in milliseconds after each frame
+#define PREFRAME_DELAY 400    // Delay in milliseconds before each frame - needed for camera autoexposure
+#define TRIG_PHOTO 1     // 1 = trigger the camera shutter for each frame, 0 = no triggering
+#define CENTER_ONLY 0    // 1 = use only the LEDcenter matrix pattern, 0 = use full LEDpattern
+
+// LED illumination pattern - 1 indicates an LED that should be turned on during the sequence
+// This pattern forms a circular/ring configuration typical for Fourier ptycography
 int LEDpattern[64][64] = {
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -71,6 +82,8 @@ int LEDpattern[64][64] = {
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}};
 
+// Center-only illumination pattern - activates only the central LED for reference imaging
+// Used when CENTER_ONLY is set to 1
 int LEDcenter[64][64] = {
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -138,80 +151,109 @@ int LEDcenter[64][64] = {
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0}};
 
 
-#define PIN_LED_BL 25
-#define PIN_LED_CK 26
-#define PIN_LED_A2 27
-#define PIN_LED_A0 28
-#define PIN_LED_B1 29
-#define PIN_LED_R1 30
-#define PIN_LED_B0 31
-#define PIN_LED_R0 32
-#define PIN_LED_LA 42
-#define PIN_LED_A3 43
-#define PIN_LED_A1 44
-#define PIN_LED_A4 45
-#define PIN_LED_G1 46
-#define PIN_LED_G0 47
+// LED Matrix Pin Definitions
+// These pins control the 64x64 RGB LED matrix
+#define PIN_LED_BL 25  // Blank control
+#define PIN_LED_CK 26  // Clock signal
+#define PIN_LED_A2 27  // Address bit A2
+#define PIN_LED_A0 28  // Address bit A0
+#define PIN_LED_B1 29  // Blue data for second half of display
+#define PIN_LED_R1 30  // Red data for second half of display
+#define PIN_LED_B0 31  // Blue data for first half of display
+#define PIN_LED_R0 32  // Red data for first half of display
+#define PIN_LED_LA 42  // Latch control
+#define PIN_LED_A3 43  // Address bit A3
+#define PIN_LED_A1 44  // Address bit A1
+#define PIN_LED_A4 45  // Address bit A4
+#define PIN_LED_G1 46  // Green data for second half of display
+#define PIN_LED_G0 47  // Green data for first half of display
 
-#define COLOR_RED 1
-#define COLOR_GREEN 2
-#define COLOR_BLUE 4
+// Color bit values for bitwise operations
+#define COLOR_RED 1     // Bit 0 controls red LEDs
+#define COLOR_GREEN 2   // Bit 1 controls green LEDs
+#define COLOR_BLUE 4    // Bit 2 controls blue LEDs
 
+// Camera control pin
+#define PIN_PHOTO_TRIGGER 5  // Pin used to trigger camera shutter
 
-#define PIN_PHOTO_TRIGGER 5
+// Global variables for LED control
+int led_x, led_y, led_color;  // Current LED position and color
+IntervalTimer led_timer;      // Timer for regular LED updates
 
-int led_x, led_y, led_color;
-IntervalTimer led_timer;
-
+/**
+ * Setup function - initializes hardware and starts the LED sequence
+ */
 void setup() {
+// Initialize serial communication for debugging and status messages
 Serial.begin(9600);
-delay(2000);
+delay(2000);  // Allow time for the serial connection to establish
 
-pinMode(PIN_PHOTO_TRIGGER, OUTPUT);
-pinMode(PIN_LED_BL, OUTPUT);
-pinMode(PIN_LED_CK, OUTPUT);
-pinMode(PIN_LED_A2, OUTPUT);
+// Configure all control pins as outputs
+pinMode(PIN_PHOTO_TRIGGER, OUTPUT);  // Camera trigger
+
+// LED matrix control pins
+pinMode(PIN_LED_BL, OUTPUT);  // Blank control
+pinMode(PIN_LED_CK, OUTPUT);  // Clock signal
+pinMode(PIN_LED_LA, OUTPUT);  // Latch control
+
+// Address pins
 pinMode(PIN_LED_A0, OUTPUT);
-pinMode(PIN_LED_B1, OUTPUT);
-pinMode(PIN_LED_R1, OUTPUT);
-pinMode(PIN_LED_B0, OUTPUT);
-pinMode(PIN_LED_R0, OUTPUT);
-pinMode(PIN_LED_LA, OUTPUT);
-pinMode(PIN_LED_A3, OUTPUT);
 pinMode(PIN_LED_A1, OUTPUT);
+pinMode(PIN_LED_A2, OUTPUT);
+pinMode(PIN_LED_A3, OUTPUT);
 pinMode(PIN_LED_A4, OUTPUT);
-pinMode(PIN_LED_G1, OUTPUT);
-pinMode(PIN_LED_G0, OUTPUT);
 
+// Data pins
+pinMode(PIN_LED_R0, OUTPUT);  // Red - lower half
+pinMode(PIN_LED_R1, OUTPUT);  // Red - upper half
+pinMode(PIN_LED_G0, OUTPUT);  // Green - lower half
+pinMode(PIN_LED_G1, OUTPUT);  // Green - upper half
+pinMode(PIN_LED_B0, OUTPUT);  // Blue - lower half
+pinMode(PIN_LED_B1, OUTPUT);  // Blue - upper half
+
+// Ensure display is blanked during initialization
 digitalWrite(PIN_LED_BL, HIGH);
 
-led_timer.begin(update_led, 10000); //10ms update rate
+// Initialize the timer for LED updates
+// 10,000 microseconds = 10ms update rate (100Hz)
+led_timer.begin(update_led, 10000);
 
 
-for( int cycle_count = 0; cycle_count <NUMBER_CYCLES; cycle_count++)
+// Execute the LED illumination sequence
+// Repeat the entire sequence NUMBER_CYCLES times
+for(int cycle_count = 0; cycle_count < NUMBER_CYCLES; cycle_count++)
 {
-  int frame_count = 0;
-  for(int x = 0; x<=63; x++ )
+  int frame_count = 0;  // Keep track of frames for status reporting
+  
+  // Scan through the entire LED matrix
+  for(int x = 0; x <= 63; x++)
   {
-    for(int y = 0; y<=63; y++)
+    for(int y = 0; y <= 63; y++)
     {
-      #if( CENTER_ONLY == 1)
-      if( LEDcenter[y][x] == 1)
+      // Check if this LED should be illuminated according to the pattern
+      #if(CENTER_ONLY == 1)
+      if(LEDcenter[y][x] == 1)  // Use center-only pattern
       #else
-      if( LEDpattern[y][x] == 1)
+      if(LEDpattern[y][x] == 1)  // Use full pattern
       #endif
-
       {
+        // Set the global variables for the timer interrupt to use
         led_x = x;
         led_y = y;
         led_color = USE_COLOR;
-        delay(PREFRAME_DELAY);  
         
-        #if( TRIG_PHOTO == 1)
+        // Pre-frame delay allows camera auto-exposure to stabilize
+        delay(PREFRAME_DELAY);
+        
+        // Trigger the camera if enabled
+        #if(TRIG_PHOTO == 1)
         trigger_photo();
         #endif
 
+        // Post-frame delay for consistent timing between frames
         delay(POSTFRAME_DELAY);
+        
+        // Output status information to serial monitor
         Serial.print("x: ");
         Serial.print(x);
         Serial.print("   y: ");
@@ -226,65 +268,95 @@ for( int cycle_count = 0; cycle_count <NUMBER_CYCLES; cycle_count++)
 
 }
 
+/**
+ * Main loop - remains mostly idle as the LED control is handled by the timer interrupt
+ * and the illumination sequence is completed in setup()
+ */
 void loop() {
-  // put your main code here, to run repeatedly:
+  // The main work is done in setup() and via the timer interrupt
+  // This loop is intentionally kept empty with minimal delay
   delay(1);
-
-
 }
 
 
 
+/**
+ * Triggers the camera to take a photo
+ * Sends a 100ms pulse on the trigger pin to activate camera shutter
+ */
 void trigger_photo()
 {
   digitalWrite(PIN_PHOTO_TRIGGER, HIGH);
-  delay(100);
+  delay(100);  // 100ms pulse width for reliable triggering
   digitalWrite(PIN_PHOTO_TRIGGER, LOW);
 }
 
 
+/**
+ * Timer callback function that updates the currently active LED
+ * Called periodically by the IntervalTimer
+ */
 void update_led()
 {
+  // Note the coordinate transformation: x and y are swapped, and x is inverted
+  // This accounts for the physical layout of the LED matrix
   send_led(led_y, 63-led_x, led_color);
 }
 
+/**
+ * Controls the LED matrix to light a specific LED with a specific color
+ * 
+ * @param x X-coordinate of the LED (0-63)
+ * @param y Y-coordinate of the LED (0-63)
+ * @param color Color value (bitwise combination of COLOR_RED, COLOR_GREEN, COLOR_BLUE)
+ */
 void send_led(int x, int y, int color)
 {
+  // Validate parameters to prevent addressing non-existent LEDs
   if(x < 0 || x > 63 || y < 0 || y > 63 || color > 7)
     {
       return;
     }
 
-  digitalWriteFast(PIN_LED_BL, HIGH);
-  digitalWriteFast(PIN_LED_LA, HIGH);
+  // Prepare the display by setting blank and latch signals
+  digitalWriteFast(PIN_LED_BL, HIGH);  // Blank the display during updates
+  digitalWriteFast(PIN_LED_LA, HIGH);  // Set latch high during data loading
 
+  // Reset address lines with a quick pulse (required by some LED matrix controllers)
   digitalWrite(PIN_LED_A0, HIGH);
   digitalWrite(PIN_LED_A0, LOW);
 
-
-  digitalWriteFast(PIN_LED_A0, y%32 & 1);
-  digitalWriteFast(PIN_LED_A1, y%32 & 2);
-  digitalWriteFast(PIN_LED_A2, y%32 & 4);
-  digitalWriteFast(PIN_LED_A3, y%32 & 8);
-  digitalWriteFast(PIN_LED_A4, y%32 & 16);
+  // Set row address bits (5-bit address for 32 rows per half)
+  // The y%32 handles the half-panel addressing
+  digitalWriteFast(PIN_LED_A0, y%32 & 1);    // A0 - LSB of row address
+  digitalWriteFast(PIN_LED_A1, y%32 & 2);    // A1
+  digitalWriteFast(PIN_LED_A2, y%32 & 4);    // A2
+  digitalWriteFast(PIN_LED_A3, y%32 & 8);    // A3
+  digitalWriteFast(PIN_LED_A4, y%32 & 16);   // A4 - MSB of row address
   
-  for( int i=0; i<64; i++)
+  // Shift in data for each column
+  for(int i=0; i<64; i++)
     {
-      
+      // Set green data pins for current column
+      // G0 for lower half (y < 32), G1 for upper half (y >= 32)
       digitalWriteFast(PIN_LED_G0, i == x && y < 32 && color & COLOR_GREEN);
       digitalWriteFast(PIN_LED_G1, i == x && y >= 32 && color & COLOR_GREEN);
 
+      // Set red data pins for current column
       digitalWriteFast(PIN_LED_R0, i == x && y < 32 && color & COLOR_RED);
       digitalWriteFast(PIN_LED_R1, i == x && y >= 32 && color & COLOR_RED);
       
+      // Set blue data pins for current column
       digitalWriteFast(PIN_LED_B0, i == x && y < 32 && color & COLOR_BLUE);
       digitalWriteFast(PIN_LED_B1, i == x && y >= 32 && color & COLOR_BLUE);
 
+      // Clock in the data for this column
       digitalWrite(PIN_LED_CK, HIGH);
-      //delayMicroseconds(1);
+      // Original had a 1µs delay that was commented out for speed
       digitalWrite(PIN_LED_CK, LOW);
-      
     }
-  digitalWriteFast(PIN_LED_LA, LOW);
-  digitalWriteFast(PIN_LED_BL, LOW);
+    
+  // Latch the data and enable display output
+  digitalWriteFast(PIN_LED_LA, LOW);   // Latch the data
+  digitalWriteFast(PIN_LED_BL, LOW);   // Enable display output
 }
