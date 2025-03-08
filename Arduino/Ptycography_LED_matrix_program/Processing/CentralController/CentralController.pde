@@ -102,7 +102,7 @@ Accordion accordion;
 
 void setup() {
   // Create window with appropriate size
-  size(1000, 700);
+  size(1080, 760);
   
   // Initialize the pattern arrays
   ledPattern = new boolean[MATRIX_HEIGHT][MATRIX_WIDTH];
@@ -160,6 +160,11 @@ void draw() {
 }
 
 void drawInfoPanel() {
+  final int SECTION_SPACING = 15;  // Space between sections
+  final int FIELD_SPACING = 25;    // Space between fields
+  final int LABEL_WIDTH = 100;     // Width for labels
+  final int VALUE_WIDTH = 120;     // Width for values
+  
   // Draw the info panel background
   fill(40);
   noStroke();
@@ -175,29 +180,22 @@ void drawInfoPanel() {
   stroke(100);
   line(10, 35, INFO_PANEL_WIDTH-10, 35);
   
-  // Draw mode information
+  // Start position for information display (below accordion controls)
+  int yPos = 320;
+  
+  // SECTION: Status Information
+  drawSectionHeader("STATUS", yPos);
+  yPos += 25;
+  
+  // Draw mode information with consistent spacing
   fill(255);
   textAlign(LEFT, TOP);
   textSize(14);
   
+  // Prepare text values
   String modeText = simulationMode ? "SIMULATION" : "HARDWARE";
   String statusText = running ? (paused ? "PAUSED" : "RUNNING") : "STOPPED";
   String idleText = idleMode ? "IDLE MODE" : "ACTIVE";
-  
-  int yOffset = 330; // Position below the control panel
-  text("Mode:", 20, yOffset);
-  text(modeText, 120, yOffset);
-  
-  yOffset += 25;
-  text("Status:", 20, yOffset);
-  text(statusText, 120, yOffset);
-  
-  yOffset += 25;
-  text("Power:", 20, yOffset);
-  text(idleText, 120, yOffset);
-  
-  yOffset += 25;
-  text("Pattern:", 20, yOffset);
   String patternText = "";
   switch (patternType) {
     case PATTERN_CONCENTRIC_RINGS: patternText = "CONCENTRIC RINGS"; break;
@@ -205,47 +203,112 @@ void drawInfoPanel() {
     case PATTERN_SPIRAL: patternText = "SPIRAL"; break;
     case PATTERN_GRID: patternText = "GRID"; break;
   }
-  text(patternText, 120, yOffset);
   
-  // Display current LED position
-  yOffset += 40;
-  text("Current LED:", 20, yOffset);
-  text("x = " + currentLedX, 20, yOffset + 25);
-  text("y = " + currentLedY, 20, yOffset + 50);
+  // Draw status fields
+  drawField("Mode:", modeText, yPos);
+  yPos += FIELD_SPACING;
   
-  // Draw hardware connection status
+  drawField("Status:", statusText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Power:", idleText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Pattern:", patternText, yPos);
+  yPos += FIELD_SPACING + SECTION_SPACING;
+  
+  // SECTION: Current LED Information
+  drawSectionHeader("CURRENT LED", yPos);
+  yPos += 25;
+  
+  drawField("X:", currentLedX == -1 ? "None" : String.valueOf(currentLedX), yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Y:", currentLedY == -1 ? "None" : String.valueOf(currentLedY), yPos);
+  yPos += FIELD_SPACING + SECTION_SPACING;
+  
+  // SECTION: Hardware Status (only in hardware mode)
   if (!simulationMode) {
-    yOffset += 90;
-    text("Hardware:", 20, yOffset);
-    text(hardwareConnected ? "CONNECTED" : "DISCONNECTED", 120, yOffset);
+    drawSectionHeader("HARDWARE", yPos);
+    yPos += 25;
+    
+    drawField("Status:", hardwareConnected ? "CONNECTED" : "DISCONNECTED", yPos);
+    yPos += FIELD_SPACING;
     
     if (hardwareConnected && arduinoPort != null) {
-      text("Port:", 20, yOffset + 25);
-      // Display the currently selected port name from the dropdown list
+      // Display the currently selected port name
       int portIndex = (int)cp5.get(ScrollableList.class, "serialPortsList").getValue();
+      String portName = "Unknown";
       if (portIndex >= 0 && portIndex < availablePorts.length) {
-        text(availablePorts[portIndex], 120, yOffset + 25);
-      } else {
-        text("Unknown", 120, yOffset + 25);
+        portName = availablePorts[portIndex];
+        // Truncate if too long
+        if (portName.length() > 15) {
+          portName = portName.substring(0, 12) + "...";
+        }
       }
+      drawField("Port:", portName, yPos);
+      yPos += FIELD_SPACING;
     }
+    
+    yPos += SECTION_SPACING;
   }
   
-  // Draw progress information
+  // SECTION: Sequence Progress (only if sequence exists)
   if (illuminationSequence != null && illuminationSequence.size() > 0) {
-    yOffset += 90;
-    text("Sequence Progress:", 20, yOffset);
-    text(sequenceIndex + " / " + illuminationSequence.size(), 120, yOffset);
+    drawSectionHeader("SEQUENCE", yPos);
+    yPos += 25;
     
-    // Draw progress bar
+    // Progress text
+    drawField("Progress:", sequenceIndex + " / " + illuminationSequence.size(), yPos);
+    yPos += FIELD_SPACING;
+    
+    // Progress bar
+    text("", 20, yPos); // Empty label
     float progress = (float)sequenceIndex / illuminationSequence.size();
+    int barWidth = 180;
+    int barHeight = 12;
+    int barX = 20;
+    int barY = yPos;
+    
+    // Background
     stroke(100);
     noFill();
-    rect(20, yOffset + 25, 180, 15);
+    rect(barX, barY, barWidth, barHeight);
+    
+    // Progress fill
     fill(0, 255, 0);
     noStroke();
-    rect(20, yOffset + 25, 180 * progress, 15);
+    rect(barX, barY, barWidth * progress, barHeight);
+    
+    yPos += 20; // Extra space after the bar
   }
+}
+
+// Helper method to draw a section header
+void drawSectionHeader(String title, int yPos) {
+  fill(180);
+  textAlign(LEFT, TOP);
+  textSize(14);
+  text(title, 20, yPos);
+  
+  // Draw a subtle separator line
+  stroke(80);
+  line(85, yPos + 7, INFO_PANEL_WIDTH - 20, yPos + 7);
+}
+
+// Helper method to draw a field with label and value
+void drawField(String label, String value, int yPos) {
+  fill(200);
+  textAlign(LEFT, TOP);
+  textSize(13);
+  text(label, 20, yPos);
+  
+  fill(255);
+  // Use ellipsis for long values to prevent spillover
+  if (value.length() > 13 && !value.contains("CONCENTRIC")) {
+    value = value.substring(0, 10) + "...";
+  }
+  text(value, 100, yPos);
 }
 
 void drawLEDMatrix() {
