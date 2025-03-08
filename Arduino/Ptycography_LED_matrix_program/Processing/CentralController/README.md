@@ -27,6 +27,7 @@ This architecture offers several advantages:
    - Sketch > Import Library > Add Library
    - Search for "ControlP5"
    - Click "Install"
+   - See [LIBRARY_INSTALLATION.md](LIBRARY_INSTALLATION.md) for detailed instructions if you have trouble
 4. Open the `CentralController.pde` sketch in Processing
 5. Run the sketch
 

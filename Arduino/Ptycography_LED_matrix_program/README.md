@@ -53,6 +53,7 @@ The `Processing/CentralController/LED_Matrix_Hardware_Interface.ino` sketch:
      - Sketch > Import Library > Add Library
      - Search for "ControlP5"
      - Click "Install"
+   - See `Processing/CentralController/LIBRARY_INSTALLATION.md` for detailed library installation instructions if needed
    - Open `Processing/CentralController/CentralController.pde`
    - Run the sketch
 
