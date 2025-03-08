@@ -4,6 +4,12 @@
  * This program controls a 64x64 RGB LED matrix for Fourier ptycography imaging applications.
  * It systematically illuminates LEDs in a specific pattern and can trigger a camera
  * for each illumination to capture the resulting diffraction patterns.
+ * 
+ * Power Management Features:
+ * - After 30 minutes of inactivity, the system enters idle mode to save power
+ * - In idle mode, all LEDs are turned off except for a periodic center LED blink (once per minute)
+ * - Send 'i' over serial to manually enter idle mode
+ * - Send 'a' over serial (or any other character) to exit idle mode
  */
 
 // Matrix dimensions
@@ -76,10 +82,24 @@ int LEDcenter[MATRIX_HEIGHT][MATRIX_WIDTH];
 #define SETUP_DELAY 2000           // Delay on startup in milliseconds
 #define CAMERA_PULSE_WIDTH 100     // Camera trigger pulse width in milliseconds
 #define LED_UPDATE_INTERVAL 10000  // LED refresh rate in microseconds (10ms = 100Hz)
+#define IDLE_TIMEOUT 1800000       // Idle timeout in milliseconds (30 minutes)
+#define IDLE_BLINK_INTERVAL 60000  // Interval for LED blink in idle mode (1 minute)
+#define IDLE_BLINK_DURATION 500    // Duration of LED blink in idle mode (milliseconds)
+
+// Serial commands
+#define CMD_IDLE_ENTER 'i'         // Command to manually enter idle mode
+#define CMD_IDLE_EXIT 'a'          // Command to exit idle mode
 
 // Global variables for LED control
-int led_x, led_y, led_color;  // Current LED position and color
-IntervalTimer led_timer;      // Timer for regular LED updates
+int led_x, led_y, led_color;       // Current LED position and color
+IntervalTimer led_timer;           // Timer for regular LED updates
+unsigned long lastActivityTime;    // Timestamp of last activity for idle detection
+bool idleMode = false;             // Flag indicating if system is in idle mode
+unsigned long lastBlinkTime;       // Timestamp of last idle blink
+
+// Buffer for display rows to reduce repeated calculations
+byte rowAddressCache[MATRIX_HEIGHT][5];  // Pre-computed row address bit values
+bool displayBufferDirty = true;        // Flag to track if display needs refresh
 
 // Error handling variables
 enum ErrorCode {
@@ -89,7 +109,9 @@ enum ErrorCode {
   ERR_PIN_INIT = 3,
   ERR_TIMER_INIT = 4,
   ERR_LED_CONTROL = 5,
-  ERR_CAMERA_TRIGGER = 6
+  ERR_CAMERA_TRIGGER = 6,
+  ERR_IDLE_MODE = 7,
+  ERR_POWER_MANAGEMENT = 8
 };
 
 ErrorCode lastError = ERR_NONE;  // Last error that occurred
@@ -223,6 +245,23 @@ bool initializePattern() {
 }
 
 /**
+ * Pre-computes row address values for faster LED updates
+ * This avoids repeated bit-masking operations during LED updates
+ */
+void initAddressCache() {
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    int rowAddr = y % MATRIX_HALF_HEIGHT; // Handle the split panel addressing
+    
+    // Store each bit value in the cache
+    rowAddressCache[y][0] = rowAddr & 1;    // A0 - LSB of row address
+    rowAddressCache[y][1] = (rowAddr & 2) > 0 ? 1 : 0;    // A1
+    rowAddressCache[y][2] = (rowAddr & 4) > 0 ? 1 : 0;    // A2
+    rowAddressCache[y][3] = (rowAddr & 8) > 0 ? 1 : 0;    // A3
+    rowAddressCache[y][4] = (rowAddr & 16) > 0 ? 1 : 0;   // A4 - MSB of row address
+  }
+}
+
+/**
  * Setup function - initializes hardware and starts the LED sequence
  * Implements error handling and recovery
  */
@@ -279,11 +318,19 @@ void setup() {
     // Catch any exceptions during pin setup
     setupSuccess = logError(ERR_PIN_INIT, "Failed to initialize I/O pins");
   }
+  
+  // Pre-compute row address values to optimize LED control
+  initAddressCache();
 
   // Initialize the timer for LED updates with error handling
   if (!led_timer.begin(update_led, LED_UPDATE_INTERVAL)) {
     setupSuccess = logError(ERR_TIMER_INIT, "Failed to initialize LED update timer");
   }
+  
+  // Initialize idle mode variables
+  lastActivityTime = millis();
+  lastBlinkTime = millis();
+  idleMode = false;
   
   // Log setup completion status
   if (setupSuccess) {
@@ -315,6 +362,7 @@ for(int cycle_count = 0; cycle_count < NUMBER_CYCLES; cycle_count++)
         led_x = x;
         led_y = y;
         led_color = USE_COLOR;
+        lastActivityTime = millis();  // Update activity time
         
         // Pre-frame delay allows camera auto-exposure to stabilize
         delay(PREFRAME_DELAY);
@@ -339,17 +387,75 @@ for(int cycle_count = 0; cycle_count < NUMBER_CYCLES; cycle_count++)
   }
 }
 
+// After sequence completion, set system to idle mode
+serialSafePrint("LED sequence complete, entering idle mode");
+idleMode = true;
+turn_off_leds();  // Turn off all LEDs when entering idle mode
 
 }
 
 /**
- * Main loop - remains mostly idle as the LED control is handled by the timer interrupt
- * and the illumination sequence is completed in setup()
+ * Main loop - handles idle mode and periodic status blinking
+ * Checks for idle timeout and manages power-saving features
  */
 void loop() {
-  // The main work is done in setup() and via the timer interrupt
-  // This loop is intentionally kept empty with minimal delay
-  delay(1);  // 1ms delay to prevent CPU hogging
+  unsigned long currentTime = millis();
+  
+  // Check for serial commands regardless of mode
+  if (Serial.available() > 0) {
+    char cmd = Serial.read();
+    
+    // Process commands
+    switch (cmd) {
+      case CMD_IDLE_ENTER:
+        if (!idleMode) {
+          serialSafePrint("Entering idle mode (manual)");
+          idleMode = true;
+          turn_off_leds();
+        }
+        break;
+        
+      case CMD_IDLE_EXIT:
+        if (idleMode) {
+          serialSafePrint("Exiting idle mode (manual)");
+          idleMode = false;
+          displayBufferDirty = true;  // Force display refresh after exiting idle
+          lastActivityTime = currentTime;
+        }
+        break;
+        
+      default:
+        // For any other character, update activity time
+        if (idleMode) {
+          serialSafePrint("Exiting idle mode due to serial activity");
+          idleMode = false;
+          displayBufferDirty = true;  // Force display refresh after exiting idle
+        }
+        lastActivityTime = currentTime;
+        break;
+    }
+  }
+  
+  // Handle idle mode operations
+  if (idleMode) {
+    // Check if it's time for a periodic blink
+    if (currentTime - lastBlinkTime >= IDLE_BLINK_INTERVAL) {
+      // Blink center LED as a heartbeat/power indicator
+      serialSafePrint("Idle mode heartbeat");
+      blink_center_led(IDLE_BLINK_DURATION);
+      lastBlinkTime = currentTime;
+    }
+  }
+  // Not in idle mode, check if we should enter idle mode due to timeout
+  else if (currentTime - lastActivityTime >= IDLE_TIMEOUT) {
+    serialSafePrint("No activity detected for 30 minutes, entering idle mode");
+    idleMode = true;
+    turn_off_leds();
+    lastBlinkTime = currentTime; // Reset blink timer when entering idle mode
+  }
+  
+  // Small delay to prevent CPU hogging
+  delay(10);
 }
 
 
@@ -399,33 +505,168 @@ bool trigger_photo()
 /**
  * Timer callback function that updates the currently active LED
  * Called periodically by the IntervalTimer
+ * Optimized version with state tracking to minimize unnecessary updates
  */
 void update_led()
 {
-  // Note the coordinate transformation: x and y are swapped, and x is inverted
-  // This accounts for the physical layout of the LED matrix
+  // In idle mode, we don't need continuous refreshing - return immediately
+  if (idleMode && !displayBufferDirty) {
+    return;
+  }
   
-  // Since this is a timer callback, we can't do much with the return value
-  // but we can track if we're consistently failing for diagnostics
-  #if ENABLE_ERROR_LOG
-  static int failCount = 0;
-  if (!send_led(led_y, MATRIX_WIDTH-1-led_x, led_color)) {
-    failCount++;
+  // We use static variables to track the previous LED state
+  // This allows us to avoid unnecessary updates if the LED hasn't changed
+  static int prev_x = -1;
+  static int prev_y = -1;
+  static int prev_color = 0;
+  
+  // Check if the display state has changed
+  if (prev_x != led_x || prev_y != led_y || prev_color != led_color || displayBufferDirty) {
+    // Note the coordinate transformation: x and y are swapped, and x is inverted
+    // This accounts for the physical layout of the LED matrix
     
-    // Log periodic status about failure rate
-    if (failCount % 100 == 0) {
-      // Can't call Serial directly from ISR, so set a flag for main loop
-      // to handle (simplified for this implementation)
+    #if ENABLE_ERROR_LOG
+    static int failCount = 0;
+    if (!send_led(led_y, MATRIX_WIDTH-1-led_x, led_color)) {
+      failCount++;
+      
+      // Log periodic status about failure rate
+      if (failCount % 100 == 0) {
+        // Can't call Serial directly from ISR, so set a flag for main loop
+        // to handle (simplified for this implementation)
+      }
+    } else {
+      // Update previous state only if successful
+      prev_x = led_x;
+      prev_y = led_y;
+      prev_color = led_color;
+      displayBufferDirty = false;
+    }
+    #else
+    // Call optimized LED update function
+    send_led(led_y, MATRIX_WIDTH-1-led_x, led_color);
+    
+    // Update previous state tracking
+    prev_x = led_x;
+    prev_y = led_y;
+    prev_color = led_color;
+    displayBufferDirty = false;
+    #endif
+  }
+}
+
+/**
+ * Turns off all LEDs in the matrix using optimized approach
+ * Used when entering idle mode or for power saving
+ * 
+ * @return true if successful
+ */
+bool turn_off_leds() {
+  // Blank the display immediately for visual feedback
+  digitalWriteFast(PIN_LED_BL, HIGH);
+  
+  // Set all color pins low (off) once before starting
+  digitalWriteFast(PIN_LED_R0, LOW);
+  digitalWriteFast(PIN_LED_R1, LOW);
+  digitalWriteFast(PIN_LED_G0, LOW);
+  digitalWriteFast(PIN_LED_G1, LOW);
+  digitalWriteFast(PIN_LED_B0, LOW);
+  digitalWriteFast(PIN_LED_B1, LOW);
+  
+  // Process rows in batches for better performance
+  // We'll do 8 rows at a time (arbitrary optimization choice)
+  const int BATCH_SIZE = 8;
+  
+  for (int batch = 0; batch < MATRIX_HEIGHT; batch += BATCH_SIZE) {
+    int endRow = min(batch + BATCH_SIZE, MATRIX_HEIGHT);
+    
+    for (int y = batch; y < endRow; y++) {
+      // Set latch high during data loading
+      digitalWriteFast(PIN_LED_LA, HIGH);
+      
+      // Reset address lines
+      digitalWriteFast(PIN_LED_A0, HIGH);
+      digitalWriteFast(PIN_LED_A0, LOW);
+      
+      // Use pre-computed row address values from cache
+      digitalWriteFast(PIN_LED_A0, rowAddressCache[y][0]);
+      digitalWriteFast(PIN_LED_A1, rowAddressCache[y][1]);
+      digitalWriteFast(PIN_LED_A2, rowAddressCache[y][2]);
+      digitalWriteFast(PIN_LED_A3, rowAddressCache[y][3]);
+      digitalWriteFast(PIN_LED_A4, rowAddressCache[y][4]);
+      
+      // Optimized: Since all color pins are already set to LOW
+      // we can just clock in data for all columns at once
+      // This is much faster than setting pins for each column
+      for (int i = 0; i < MATRIX_WIDTH; i++) {
+        // Clock in the data (all zeros)
+        digitalWriteFast(PIN_LED_CK, HIGH);
+        digitalWriteFast(PIN_LED_CK, LOW);
+      }
+      
+      // Latch the data
+      digitalWriteFast(PIN_LED_LA, LOW);
     }
   }
-  #else
-  // Just call without error tracking in non-debug mode
-  send_led(led_y, MATRIX_WIDTH-1-led_x, led_color);
-  #endif
+  
+  // Mark the display buffer as clean to avoid unnecessary refreshes
+  displayBufferDirty = false;
+  
+  // Keep display blanked
+  digitalWriteFast(PIN_LED_BL, HIGH);
+  return true;
+}
+
+/**
+ * Blinks the center LED for the specified duration
+ * Used as a power/status indicator in idle mode
+ * Optimized version that preserves state tracking
+ * 
+ * @param duration Duration in milliseconds to light the LED
+ * @return true if successful, false if error
+ */
+bool blink_center_led(int duration) {
+  // Get the center coordinates
+  int centerX = MATRIX_WIDTH / 2;
+  int centerY = MATRIX_HEIGHT / 2;
+  
+  // Save current LED state
+  int savedX = led_x;
+  int savedY = led_y;
+  int savedColor = led_color;
+  
+  // Force display update by marking buffer as dirty
+  displayBufferDirty = true;
+  
+  // Set the center LED coordinates
+  led_x = centerX;
+  led_y = centerY;
+  led_color = USE_COLOR;
+  
+  // Update the display - this will be picked up by the interrupt
+  // but we'll also force an immediate update for responsiveness
+  send_led(centerY, MATRIX_WIDTH-1-centerX, USE_COLOR);
+  
+  // Keep it on for the specified duration
+  delay(duration);
+  
+  // Turn it off
+  turn_off_leds();
+  
+  // Restore previous state if we weren't in idle mode
+  if (!idleMode) {
+    led_x = savedX;
+    led_y = savedY;
+    led_color = savedColor;
+    displayBufferDirty = true;  // Force refresh of original LED
+  }
+  
+  return true;
 }
 
 /**
  * Controls the LED matrix to light a specific LED with a specific color
+ * Optimized version using pre-computed row addresses and direct port manipulation
  * 
  * @param x X-coordinate of the LED (0-63)
  * @param y Y-coordinate of the LED (0-63)
@@ -446,49 +687,58 @@ bool send_led(int x, int y, int color)
     return false;
   }
 
+  // Update activity timestamp when controlling LEDs
+  if (!idleMode) {
+    lastActivityTime = millis();
+  }
+
+  // Calculate which half of the panel we're addressing once
+  bool isLowerHalf = (y < MATRIX_HALF_HEIGHT);
+
   // Prepare the display by setting blank and latch signals
   digitalWriteFast(PIN_LED_BL, HIGH);  // Blank the display during updates
   digitalWriteFast(PIN_LED_LA, HIGH);  // Set latch high during data loading
 
-  // Reset address lines with a quick pulse (required by some LED matrix controllers)
-  digitalWrite(PIN_LED_A0, HIGH);
-  digitalWrite(PIN_LED_A0, LOW);
+  // Reset address lines with a quick pulse (needed for reliable addressing)
+  digitalWriteFast(PIN_LED_A0, HIGH);
+  digitalWriteFast(PIN_LED_A0, LOW);
 
-  // Set row address bits (5-bit address for rows within each half)
-  // The y%MATRIX_HALF_HEIGHT handles the half-panel addressing
-  digitalWriteFast(PIN_LED_A0, y%MATRIX_HALF_HEIGHT & 1);    // A0 - LSB of row address
-  digitalWriteFast(PIN_LED_A1, y%MATRIX_HALF_HEIGHT & 2);    // A1
-  digitalWriteFast(PIN_LED_A2, y%MATRIX_HALF_HEIGHT & 4);    // A2
-  digitalWriteFast(PIN_LED_A3, y%MATRIX_HALF_HEIGHT & 8);    // A3
-  digitalWriteFast(PIN_LED_A4, y%MATRIX_HALF_HEIGHT & 16);   // A4 - MSB of row address
+  // Use pre-computed row address bits from the cache
+  digitalWriteFast(PIN_LED_A0, rowAddressCache[y][0]);  // A0 - LSB
+  digitalWriteFast(PIN_LED_A1, rowAddressCache[y][1]);  // A1
+  digitalWriteFast(PIN_LED_A2, rowAddressCache[y][2]);  // A2
+  digitalWriteFast(PIN_LED_A3, rowAddressCache[y][3]);  // A3
+  digitalWriteFast(PIN_LED_A4, rowAddressCache[y][4]);  // A4 - MSB
   
-  // Shift in data for each column
-  for(int i=0; i < MATRIX_WIDTH; i++)
-    {
-      // Calculate which half of the panel we're addressing
-      bool isLowerHalf = (y < MATRIX_HALF_HEIGHT);
-      bool isTargetColumn = (i == x);
-      
-      // Set green data pins for current column
-      // G0 for lower half, G1 for upper half
-      digitalWriteFast(PIN_LED_G0, isTargetColumn && isLowerHalf && (color & COLOR_GREEN));
-      digitalWriteFast(PIN_LED_G1, isTargetColumn && !isLowerHalf && (color & COLOR_GREEN));
-
-      // Set red data pins for current column
-      digitalWriteFast(PIN_LED_R0, isTargetColumn && isLowerHalf && (color & COLOR_RED));
-      digitalWriteFast(PIN_LED_R1, isTargetColumn && !isLowerHalf && (color & COLOR_RED));
-      
-      // Set blue data pins for current column
-      digitalWriteFast(PIN_LED_B0, isTargetColumn && isLowerHalf && (color & COLOR_BLUE));
-      digitalWriteFast(PIN_LED_B1, isTargetColumn && !isLowerHalf && (color & COLOR_BLUE));
-
-      // Clock in the data for this column
-      digitalWrite(PIN_LED_CK, HIGH);
-      // Original had a 1µs delay that was commented out for speed
-      digitalWrite(PIN_LED_CK, LOW);
+  // Prepare color values for current and non-current columns
+  byte currentR = (color & COLOR_RED) ? 1 : 0;
+  byte currentG = (color & COLOR_GREEN) ? 1 : 0;
+  byte currentB = (color & COLOR_BLUE) ? 1 : 0;
+  
+  // Shift in data for each column - optimized loop
+  for(int i=0; i < MATRIX_WIDTH; i++) {
+    bool isTargetColumn = (i == x);
+    
+    // Only update pins when needed (when target column or changing from target)
+    if (isTargetColumn || (i == x + 1)) {
+      // Set all color data pins in one go
+      // Use ternary operators to reduce branch predictions
+      digitalWriteFast(PIN_LED_G0, isTargetColumn ? (isLowerHalf ? currentG : 0) : 0);
+      digitalWriteFast(PIN_LED_G1, isTargetColumn ? (!isLowerHalf ? currentG : 0) : 0);
+      digitalWriteFast(PIN_LED_R0, isTargetColumn ? (isLowerHalf ? currentR : 0) : 0);
+      digitalWriteFast(PIN_LED_R1, isTargetColumn ? (!isLowerHalf ? currentR : 0) : 0);
+      digitalWriteFast(PIN_LED_B0, isTargetColumn ? (isLowerHalf ? currentB : 0) : 0);
+      digitalWriteFast(PIN_LED_B1, isTargetColumn ? (!isLowerHalf ? currentB : 0) : 0);
     }
+    
+    // Clock in the data for this column
+    digitalWriteFast(PIN_LED_CK, HIGH);
+    digitalWriteFast(PIN_LED_CK, LOW);
+  }
     
   // Latch the data and enable display output
   digitalWriteFast(PIN_LED_LA, LOW);   // Latch the data
   digitalWriteFast(PIN_LED_BL, LOW);   // Enable display output
+  
+  return true;
 }
