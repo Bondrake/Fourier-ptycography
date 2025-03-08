@@ -81,6 +81,8 @@ boolean showGrid = true;
 boolean running = false;
 boolean paused = false;
 boolean idleMode = false;
+boolean circleMaskMode = false;  // Toggle for circle mask mode
+int circleMaskRadius = 25;       // Radius for the circle mask in pixels
 
 // Pattern storage
 boolean[][] ledPattern;
@@ -196,6 +198,7 @@ void drawInfoPanel() {
   String modeText = simulationMode ? "SIMULATION" : "HARDWARE";
   String statusText = running ? (paused ? "PAUSED" : "RUNNING") : "STOPPED";
   String idleText = idleMode ? "IDLE MODE" : "ACTIVE";
+  String maskText = circleMaskMode ? "ON (r=" + circleMaskRadius + ")" : "OFF";
   String patternText = "";
   switch (patternType) {
     case PATTERN_CONCENTRIC_RINGS: patternText = "CONCENTRIC RINGS"; break;
@@ -215,6 +218,9 @@ void drawInfoPanel() {
   yPos += FIELD_SPACING;
   
   drawField("Pattern:", patternText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Mask:", maskText, yPos);
   yPos += FIELD_SPACING + SECTION_SPACING;
   
   // SECTION: Current LED Information
@@ -412,8 +418,8 @@ void setupUI() {
   final int BAR_HEIGHT = 20;
   
   // Calculate heights for each group - increased as requested
-  final int PATTERN_GROUP_HEIGHT = 270;  // Increased by 80 pixels
-  final int CONTROL_GROUP_HEIGHT = 180;  // Increased by 40 pixels
+  final int PATTERN_GROUP_HEIGHT = 370;  // Increased to accommodate circle mask controls
+  final int CONTROL_GROUP_HEIGHT = 220;  // Reduced since we moved circle mask controls
   final int HARDWARE_GROUP_HEIGHT = 300; // Increased by 80 pixels
   
   // Calculate spacing between groups in accordion mode
@@ -519,6 +525,33 @@ void setupUI() {
     .moveTo(patternGroup);
   // Configure label after adding to group
   spacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // Add Circle Mask section title
+  cp5.addTextlabel("maskTitle")
+    .setText("Circle Mask:")
+    .setPosition(CONTROL_MARGIN, 300)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(patternGroup);
+    
+  // Add Circle Mask Toggle
+  cp5.addToggle("circleMaskToggle")
+    .setPosition(CONTROL_MARGIN + 100, 300)
+    .setSize(50, 15)
+    .setLabel("")
+    .setValue(false)
+    .moveTo(patternGroup);
+    
+  // Circle Mask Radius slider
+  Slider circleMaskSlider = cp5.addSlider("circleMaskRadius")
+    .setPosition(CONTROL_MARGIN, 330)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(5, 32)
+    .setValue(25)
+    .setLabel("Mask Radius")
+    .moveTo(patternGroup);
+  // Configure label after adding to group
+  circleMaskSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
     
   // Add control buttons with more consistent spacing
   int buttonWidth = (GROUP_WIDTH - CONTROL_MARGIN*3) / 2;
@@ -568,7 +601,7 @@ void setupUI() {
     .setFont(createFont("Arial", 14))
     .moveTo(controlGroup);
     
-  // Toggles for settings
+  // Toggles for settings - first row
   cp5.addToggle("idleToggle")
     .setPosition(CONTROL_MARGIN, 150)
     .setSize(buttonWidth, 25)
@@ -583,6 +616,8 @@ void setupUI() {
     .setValue(true)
     .moveTo(controlGroup);
     
+  // Circle mask toggle was moved to Pattern Settings
+    
   // Interval slider - made narrower like pattern sliders
   Slider intervalSlider = cp5.addSlider("updateInterval")
     .setPosition(CONTROL_MARGIN, 190)
@@ -593,6 +628,8 @@ void setupUI() {
     .moveTo(controlGroup);
   // Configure label after adding to group
   intervalSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // Circle mask radius slider was moved to Pattern Settings
     
   // Add hardware controls with better spacing
   
@@ -806,6 +843,13 @@ public void gridToggle(boolean value) {
   showGrid = value;
 }
 
+public void circleMaskToggle(boolean value) {
+  circleMaskMode = value;
+  // Regenerate pattern when toggling circle mask mode
+  regeneratePattern();
+  generateIlluminationSequence();
+}
+
 public void controlEvent(ControlEvent event) {
   // Listen for parameter changes
   if (event.isController()) {
@@ -813,7 +857,8 @@ public void controlEvent(ControlEvent event) {
     if (name.equals("innerRingRadius") || 
         name.equals("middleRingRadius") || 
         name.equals("outerRingRadius") || 
-        name.equals("targetLedSpacingMM")) {
+        name.equals("targetLedSpacingMM") ||
+        name.equals("circleMaskRadius")) {
       // Recalculate LED skip
       ledSkip = round(targetLedSpacingMM / ledPitchMM);
       if (ledSkip < 1) ledSkip = 1;
@@ -859,6 +904,28 @@ void regeneratePattern() {
     case PATTERN_GRID:
       generateGrid();
       break;
+  }
+  
+  // Apply circle mask if enabled
+  if (circleMaskMode) {
+    applyCircleMask(centerX, centerY);
+  }
+}
+
+// Apply a circular mask to the pattern, only keeping LEDs within the specified radius
+void applyCircleMask(int centerX, int centerY) {
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      // Calculate distance from center
+      float dx = x - centerX;
+      float dy = y - centerY;
+      float distance = sqrt(dx*dx + dy*dy);
+      
+      // Disable LEDs outside the mask radius
+      if (distance > circleMaskRadius) {
+        ledPattern[y][x] = false;
+      }
+    }
   }
 }
 
