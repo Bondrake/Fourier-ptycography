@@ -12,6 +12,34 @@
   - 'a' - Manually exit idle mode
   - Any other character will also exit idle mode
 
+## Visualization System
+The program includes a dual-mode visualization system that allows you to see the LED matrix state in real-time without physical hardware.
+
+### Enabling Visualization Mode
+1. Set `#define VISUALIZATION_MODE 1` in the Arduino code
+2. Upload the code to the Arduino (or use a simulator)
+3. Use the Processing sketch `LED_Matrix_Visualizer.pde` (in the Processing folder) to view the matrix
+
+### Visualization Commands
+- 'v' - Start visualization mode (sends LED pattern and real-time updates to visualizer)
+- 'q' - Stop visualization mode
+- 'p' - Export the full LED pattern to the visualizer
+
+### Processing Visualizer Features
+- Shows the 64x64 LED matrix as a grid of colored squares
+- Works in two modes:
+  - Simulation Mode: Runs the LED pattern algorithm within Processing
+  - Hardware Mode: Connects to Arduino via serial to show real-time LED states
+- Toggle between modes with 's' key
+- Toggle full pattern/center-only with 'p' key
+- Pause/resume with space bar
+- Toggle grid lines with 'g' key
+
+### Validation Without Hardware
+1. Run the Processing sketch in Simulation Mode to validate the LED pattern algorithm
+2. Run Arduino code in a simulator like Wokwi or Tinkercad with visualization enabled
+3. Connect the Processing sketch to the simulator's serial port
+
 ## Code Style Guidelines
 - Constants: Use `#define NAME VALUE` for program configuration
 - Arrays: Define with global scope, use descriptive names (LEDpattern, LEDcenter)

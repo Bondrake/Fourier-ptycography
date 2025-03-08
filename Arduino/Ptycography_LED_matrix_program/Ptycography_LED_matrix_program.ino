@@ -24,6 +24,7 @@
 #define PREFRAME_DELAY 400    // Delay in milliseconds before each frame - needed for camera autoexposure
 #define TRIG_PHOTO 1     // 1 = trigger the camera shutter for each frame, 0 = no triggering
 #define CENTER_ONLY 0    // 1 = use only the LEDcenter matrix pattern, 0 = use full LEDpattern
+#define VISUALIZATION_MODE 0  // 1 = send matrix data to visualization tool, 0 = normal operation
 
 // Serial communication settings
 #define SERIAL_TIMEOUT 5000   // Timeout for serial operations in milliseconds
@@ -89,6 +90,9 @@ int LEDcenter[MATRIX_HEIGHT][MATRIX_WIDTH];
 // Serial commands
 #define CMD_IDLE_ENTER 'i'         // Command to manually enter idle mode
 #define CMD_IDLE_EXIT 'a'          // Command to exit idle mode
+#define CMD_VIS_START 'v'          // Command to start visualization mode
+#define CMD_VIS_STOP 'q'           // Command to stop visualization mode
+#define CMD_PATTERN_EXPORT 'p'     // Command to export the full pattern
 
 // Global variables for LED control
 int led_x, led_y, led_color;       // Current LED position and color
@@ -96,10 +100,17 @@ IntervalTimer led_timer;           // Timer for regular LED updates
 unsigned long lastActivityTime;    // Timestamp of last activity for idle detection
 bool idleMode = false;             // Flag indicating if system is in idle mode
 unsigned long lastBlinkTime;       // Timestamp of last idle blink
+bool visualizationMode = false;    // Flag indicating if visualization mode is active
 
 // Buffer for display rows to reduce repeated calculations
 byte rowAddressCache[MATRIX_HEIGHT][5];  // Pre-computed row address bit values
 bool displayBufferDirty = true;        // Flag to track if display needs refresh
+
+// Visualization mode variables
+#if VISUALIZATION_MODE
+unsigned long visUpdateTime;      // For controlling the visualization data update rate
+#define VIS_UPDATE_INTERVAL 100   // Update visualization data every 100ms
+#endif
 
 // Error handling variables
 enum ErrorCode {
@@ -244,6 +255,72 @@ bool initializePattern() {
   return success;
 }
 
+#if VISUALIZATION_MODE
+/**
+ * Sends the current LED state to the visualization tool
+ * Format: "LED,x,y,color\n"
+ * 
+ * @param x X-coordinate of the LED
+ * @param y Y-coordinate of the LED
+ * @param color Color value
+ */
+void sendLEDStateToVisualizer(int x, int y, int color) {
+  Serial.print("LED,");
+  Serial.print(x);
+  Serial.print(",");
+  Serial.print(y);
+  Serial.print(",");
+  Serial.println(color);
+}
+
+/**
+ * Exports the full LED pattern to the visualization tool
+ * Sends all LEDs that are part of the pattern
+ */
+void exportPatternToVisualizer() {
+  Serial.println("PATTERN_START");
+  
+  // Send all LEDs in the pattern
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      #if(CENTER_ONLY == 1)
+      if (LEDcenter[y][x] == 1)
+      #else
+      if (LEDpattern[y][x] == 1)
+      #endif
+      {
+        Serial.print("PATTERN,");
+        Serial.print(x);
+        Serial.print(",");
+        Serial.println(y);
+      }
+    }
+  }
+  
+  Serial.println("PATTERN_END");
+}
+
+/**
+ * Updates the visualization if in visualization mode
+ * Should be called regularly from the main loop
+ */
+void updateVisualization() {
+  if (!visualizationMode) return;
+  
+  // Only send updates periodically to avoid flooding the serial port
+  unsigned long currentTime = millis();
+  if (currentTime - visUpdateTime < VIS_UPDATE_INTERVAL) {
+    return;
+  }
+  
+  // Send the current LED state
+  sendLEDStateToVisualizer(led_x, led_y, led_color);
+  
+  // Update the last update time
+  visUpdateTime = currentTime;
+}
+#endif
+
 /**
  * Pre-computes row address values for faster LED updates
  * This avoids repeated bit-masking operations during LED updates
@@ -331,6 +408,12 @@ void setup() {
   lastActivityTime = millis();
   lastBlinkTime = millis();
   idleMode = false;
+  
+  #if VISUALIZATION_MODE
+  // Initialize visualization mode variables
+  visualizationMode = false;
+  visUpdateTime = millis();
+  #endif
   
   // Log setup completion status
   if (setupSuccess) {
@@ -423,6 +506,30 @@ void loop() {
           lastActivityTime = currentTime;
         }
         break;
+      
+      #if VISUALIZATION_MODE
+      case CMD_VIS_START:
+        if (!visualizationMode) {
+          serialSafePrint("Starting visualization mode");
+          visualizationMode = true;
+          visUpdateTime = currentTime;
+          // Send the current pattern to the visualizer
+          exportPatternToVisualizer();
+        }
+        break;
+        
+      case CMD_VIS_STOP:
+        if (visualizationMode) {
+          serialSafePrint("Stopping visualization mode");
+          visualizationMode = false;
+        }
+        break;
+        
+      case CMD_PATTERN_EXPORT:
+        serialSafePrint("Exporting LED pattern...");
+        exportPatternToVisualizer();
+        break;
+      #endif
         
       default:
         // For any other character, update activity time
@@ -453,6 +560,13 @@ void loop() {
     turn_off_leds();
     lastBlinkTime = currentTime; // Reset blink timer when entering idle mode
   }
+  
+  #if VISUALIZATION_MODE
+  // Update visualization if active
+  if (visualizationMode) {
+    updateVisualization();
+  }
+  #endif
   
   // Small delay to prevent CPU hogging
   delay(10);
@@ -691,6 +805,15 @@ bool send_led(int x, int y, int color)
   if (!idleMode) {
     lastActivityTime = millis();
   }
+  
+  #if VISUALIZATION_MODE
+  // If in visualization mode, update the LED state right away
+  // This ensures that the LED state is sent to the visualizer immediately
+  // even if the regular update interval hasn't elapsed
+  if (visualizationMode) {
+    sendLEDStateToVisualizer(x, y, color);
+  }
+  #endif
 
   // Calculate which half of the panel we're addressing once
   bool isLowerHalf = (y < MATRIX_HALF_HEIGHT);
