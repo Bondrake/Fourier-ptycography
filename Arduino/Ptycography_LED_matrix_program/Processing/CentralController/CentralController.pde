@@ -475,37 +475,50 @@ void setupUI() {
     .setFont(createFont("Arial", 14))
     .moveTo(patternGroup);
     
-  // Add sliders for ring radii - increased spacing between controls
+  // Calculate slider dimensions to leave room for labels
+  final int SLIDER_WIDTH = 140; // Significantly narrower to leave room for labels
+  final int LABEL_OFFSET = 8;   // Space between slider and its label
+  
+  // Add sliders for ring radii - with narrower width to avoid label spillover
   cp5.addSlider("innerRingRadius")
     .setPosition(CONTROL_MARGIN, 180)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
+    .setSize(SLIDER_WIDTH, 15)
     .setRange(5, 30)
     .setValue(16)
     .setLabel("Inner Ring Radius")
+    .setLabelVisible(true)
+    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
+    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
     
   cp5.addSlider("middleRingRadius")
     .setPosition(CONTROL_MARGIN, 210)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
+    .setSize(SLIDER_WIDTH, 15)
     .setRange(10, 40)
     .setValue(24)
     .setLabel("Middle Ring Radius")
+    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
+    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
     
   cp5.addSlider("outerRingRadius")
     .setPosition(CONTROL_MARGIN, 240)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
+    .setSize(SLIDER_WIDTH, 15)
     .setRange(15, 31)
     .setValue(31)
     .setLabel("Outer Ring Radius")
+    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
+    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
     
   cp5.addSlider("targetLedSpacingMM")
     .setPosition(CONTROL_MARGIN, 270)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 15)
+    .setSize(SLIDER_WIDTH, 15)
     .setRange(2, 6)
     .setValue(4)
     .setLabel("LED Spacing (mm)")
+    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
+    .setPaddingX(LABEL_OFFSET)
     .moveTo(patternGroup);
     
   // Add control buttons with more consistent spacing
@@ -571,13 +584,15 @@ void setupUI() {
     .setValue(true)
     .moveTo(controlGroup);
     
-  // Interval slider
+  // Interval slider - made narrower like pattern sliders
   cp5.addSlider("updateInterval")
     .setPosition(CONTROL_MARGIN, 190)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 20)
+    .setSize(SLIDER_WIDTH, 20)
     .setRange(100, 2000)
     .setValue(500)
     .setLabel("Update Interval (ms)")
+    .getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER)
+    .setPaddingX(LABEL_OFFSET)
     .moveTo(controlGroup);
     
   // Add hardware controls with better spacing
