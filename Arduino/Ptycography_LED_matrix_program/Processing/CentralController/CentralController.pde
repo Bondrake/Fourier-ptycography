@@ -22,9 +22,9 @@ import processing.serial.*;
 final int MATRIX_WIDTH = 64;
 final int MATRIX_HEIGHT = 64;
 final int CELL_SIZE = 8;
-final int GRID_PADDING_LEFT = 350;  // Increased to account for wider info panel
+final int INFO_PANEL_WIDTH = 330;   // Width of the info panel
+final int GRID_PADDING_LEFT = INFO_PANEL_WIDTH + 20;  // Position grid relative to info panel
 final int GRID_PADDING_TOP = 50;
-final int INFO_PANEL_WIDTH = 330;   // Made even wider to accommodate side labels
 final int CONTROL_PANEL_HEIGHT = 200;
 
 // Pattern types
@@ -103,8 +103,14 @@ ControlP5 cp5;
 Accordion accordion;
 
 void setup() {
-  // Create window with appropriate size - increased height by 300 pixels
-  size(1080, 1060);
+  // Calculate window size based on matrix dimensions and UI elements
+  int windowWidth = INFO_PANEL_WIDTH + MATRIX_WIDTH * CELL_SIZE + 40; // Info panel + matrix + padding
+  int windowHeight = max(MATRIX_HEIGHT * CELL_SIZE + GRID_PADDING_TOP + 50, 780); // Matrix height or minimum UI height
+  
+  // Note: In Processing, the size() function must have constant parameters
+  // We can't use variables for the size, so we'll keep the fixed dimensions
+  // but we'll use calculated positions for all elements
+  size(1080, 1100); // Increased height by 40px to ensure enough room for everything
   
   // Initialize the pattern arrays
   ledPattern = new boolean[MATRIX_HEIGHT][MATRIX_WIDTH];
@@ -182,8 +188,39 @@ void drawInfoPanel() {
   stroke(100);
   line(10, 35, INFO_PANEL_WIDTH-10, 35);
   
-  // Start position for information display - moved to the bottom of the panel
-  int yPos = height - 250;  // Start status section from the bottom
+  // Calculate the starting position for the status information
+  // Position it relative to the window height and accordion panels
+  int panelsHeight = 40 + cp5.get(Group.class, "Pattern Settings").getBackgroundHeight() + 
+                    cp5.get(Group.class, "Controls").getBackgroundHeight() + 
+                    cp5.get(Group.class, "Hardware").getBackgroundHeight() + 60; // include accordion headers
+  
+  // Calculate status panel size requirements with precise measurements
+  final int STATUS_SECTION_HEIGHT = 25 + (5 * FIELD_SPACING); // Status header + 5 fields
+  final int CURRENT_LED_SECTION_HEIGHT = 25 + (2 * FIELD_SPACING); // LED header + 2 fields
+  final int HARDWARE_SECTION_HEIGHT = !simulationMode ? (25 + (2 * FIELD_SPACING)) : 0; // Hardware section
+  final int SEQUENCE_SECTION_HEIGHT = (illuminationSequence != null && illuminationSequence.size() > 0) ? 
+                                    (25 + FIELD_SPACING + 30) : 0; // Sequence section
+  
+  // Total height needed for status panel with proper spacing
+  int statusPanelHeight = STATUS_SECTION_HEIGHT + CURRENT_LED_SECTION_HEIGHT + 
+                         HARDWARE_SECTION_HEIGHT + SEQUENCE_SECTION_HEIGHT + 
+                         (3 * SECTION_SPACING); // Spacing between sections
+  
+  // Calculate how much space remains for status panel
+  int availableSpace = height - panelsHeight - 20; // 20px bottom margin
+  
+  // Start position for information display
+  int yPos;
+  
+  // With increased window height, we should now have more room
+  // Position the status panel properly based on the space available
+  yPos = Math.min(panelsHeight + 30, height - statusPanelHeight - 30);
+  
+  // If there's still not enough space, give a warning but keep all info
+  if (yPos + statusPanelHeight > height) {
+    yPos = height - statusPanelHeight - 20; // Force it to fit
+    println("Note: Repositioned status panel to ensure visibility");
+  }
   
   // SECTION: Status Information
   drawSectionHeader("STATUS", yPos);
@@ -319,7 +356,20 @@ void drawField(String label, String value, int yPos) {
 
 void drawLEDMatrix() {
   // Calculate grid position
-  int gridX = GRID_PADDING_LEFT;
+  int availableWidth = width - INFO_PANEL_WIDTH - 40; // Available width after info panel with padding
+  int availableHeight = height - GRID_PADDING_TOP - 40; // Available height with top and bottom padding
+  
+  // Calculate the maximum cell size that will fit in the available space
+  int maxCellWidth = availableWidth / MATRIX_WIDTH;
+  int maxCellHeight = availableHeight / MATRIX_HEIGHT;
+  int dynamicCellSize = min(maxCellWidth, maxCellHeight, CELL_SIZE);
+  
+  // Calculate the matrix dimensions with the dynamic cell size
+  int matrixWidth = MATRIX_WIDTH * dynamicCellSize;
+  int matrixHeight = MATRIX_HEIGHT * dynamicCellSize;
+  
+  // Center the matrix in the available space
+  int gridX = INFO_PANEL_WIDTH + (availableWidth - matrixWidth) / 2 + 20; // Add padding
   int gridY = GRID_PADDING_TOP;
   
   // Draw matrix area background
@@ -331,12 +381,12 @@ void drawLEDMatrix() {
   fill(200);
   textAlign(CENTER, TOP);
   textSize(14);
-  text("64x64 RGB LED MATRIX", gridX + (MATRIX_WIDTH * CELL_SIZE) / 2, 20);
+  text("64x64 RGB LED MATRIX", gridX + matrixWidth / 2, 20);
   
   // Draw grid background
   noStroke();
   fill(30);
-  rect(gridX - 1, gridY - 1, MATRIX_WIDTH * CELL_SIZE + 2, MATRIX_HEIGHT * CELL_SIZE + 2);
+  rect(gridX - 1, gridY - 1, matrixWidth + 2, matrixHeight + 2);
   
   // Draw each LED cell
   for (int y = 0; y < MATRIX_HEIGHT; y++) {
@@ -373,9 +423,9 @@ void drawLEDMatrix() {
       
       // Draw the cell
       fill(cellColor);
-      int cellX = gridX + x * CELL_SIZE;
-      int cellY = gridY + y * CELL_SIZE;
-      rect(cellX, cellY, CELL_SIZE, CELL_SIZE);
+      int cellX = gridX + x * dynamicCellSize;
+      int cellY = gridY + y * dynamicCellSize;
+      rect(cellX, cellY, dynamicCellSize, dynamicCellSize);
     }
   }
   
@@ -384,11 +434,11 @@ void drawLEDMatrix() {
     stroke(60);
     // Draw vertical lines
     for (int x = 0; x <= MATRIX_WIDTH; x += 8) {
-      line(gridX + x * CELL_SIZE, gridY, gridX + x * CELL_SIZE, gridY + MATRIX_HEIGHT * CELL_SIZE);
+      line(gridX + x * dynamicCellSize, gridY, gridX + x * dynamicCellSize, gridY + matrixHeight);
     }
     // Draw horizontal lines
     for (int y = 0; y <= MATRIX_HEIGHT; y += 8) {
-      line(gridX, gridY + y * CELL_SIZE, gridX + MATRIX_WIDTH * CELL_SIZE, gridY + y * CELL_SIZE);
+      line(gridX, gridY + y * dynamicCellSize, gridX + matrixWidth, gridY + y * dynamicCellSize);
     }
   }
   
@@ -399,13 +449,13 @@ void drawLEDMatrix() {
   
   // Draw x-axis coordinates (only every 8 for clarity)
   for (int x = 0; x < MATRIX_WIDTH; x += 8) {
-    text(str(x), gridX + x * CELL_SIZE + CELL_SIZE/2, gridY + MATRIX_HEIGHT * CELL_SIZE + 5);
+    text(str(x), gridX + x * dynamicCellSize + dynamicCellSize/2, gridY + matrixHeight + 5);
   }
   
   // Draw y-axis coordinates (only every 8 for clarity)
   textAlign(RIGHT, CENTER);
   for (int y = 0; y < MATRIX_HEIGHT; y += 8) {
-    text(str(y), gridX - 5, gridY + y * CELL_SIZE + CELL_SIZE/2);
+    text(str(y), gridX - 5, gridY + y * dynamicCellSize + dynamicCellSize/2);
   }
 }
 
@@ -417,10 +467,15 @@ void setupUI() {
   final int CONTROL_MARGIN = 10;
   final int BAR_HEIGHT = 20;
   
-  // Calculate heights for each group - increased as requested
-  final int PATTERN_GROUP_HEIGHT = 370;  // Increased to accommodate circle mask controls
-  final int CONTROL_GROUP_HEIGHT = 220;  // Reduced since we moved circle mask controls
-  final int HARDWARE_GROUP_HEIGHT = 300; // Increased by 80 pixels
+  // Calculate section heights with extra padding to ensure enough room
+  final int RADIO_SECTION_HEIGHT = 150;  // Title + 4 radio buttons with spacing
+  final int SLIDERS_SECTION_HEIGHT = 160; // Title + 4 sliders with spacing
+  final int MASK_SECTION_HEIGHT = 85;    // Title + toggle + slider
+  
+  // Total heights for each group based on their content with extra padding
+  final int PATTERN_GROUP_HEIGHT = RADIO_SECTION_HEIGHT + SLIDERS_SECTION_HEIGHT + MASK_SECTION_HEIGHT + 20; // +20px extra
+  final int CONTROL_GROUP_HEIGHT = 250;  // Buttons section + settings section + extra padding
+  final int HARDWARE_GROUP_HEIGHT = 340; // Mode section + connection section + extra padding
   
   // Calculate spacing between groups in accordion mode
   final int GROUP_SPACING = BAR_HEIGHT + 5;
@@ -449,6 +504,13 @@ void setupUI() {
     .setBackgroundHeight(HARDWARE_GROUP_HEIGHT)
     .setBarHeight(BAR_HEIGHT);
     
+  // Constants for spacing calculations
+  final int TITLE_HEIGHT = 25;
+  final int RADIO_BUTTON_HEIGHT = 20;
+  final int RADIO_BUTTON_SPACING = 15;
+  final int PATTERN_SECTION_SPACING = 25; // Section spacing specifically for pattern group
+  final int NUM_RADIO_BUTTONS = 4;
+  
   // Add a title for Pattern group
   cp5.addTextlabel("patternTitle")
     .setText("Select Pattern Type:")
@@ -457,15 +519,18 @@ void setupUI() {
     .setFont(createFont("Arial", 14))
     .moveTo(patternGroup);
     
+  // Starting position for radio buttons
+  int radioY = 10 + TITLE_HEIGHT;
+    
   // Add controls to pattern group with better spacing
   cp5.addRadioButton("patternTypeRadio")
-    .setPosition(CONTROL_MARGIN, 40)  // Moved down to make room for title
-    .setSize(20, 20)   // Larger radio buttons
+    .setPosition(CONTROL_MARGIN, radioY)
+    .setSize(20, RADIO_BUTTON_HEIGHT)
     .setColorForeground(color(120))
     .setColorActive(color(0, 255, 0))
     .setColorLabel(color(255))
     .setItemsPerRow(1)
-    .setSpacingRow(15) // Increased spacing between radio buttons
+    .setSpacingRow(RADIO_BUTTON_SPACING)
     .addItem("Concentric Rings", PATTERN_CONCENTRIC_RINGS)
     .addItem("Center Only", PATTERN_CENTER_ONLY)
     .addItem("Spiral", PATTERN_SPIRAL)
@@ -473,10 +538,15 @@ void setupUI() {
     .activate(PATTERN_CONCENTRIC_RINGS)
     .moveTo(patternGroup);
     
-  // Add a title for the sliders - moved much lower to avoid overlap with radio buttons
+  // Calculate exact position for slider section based on radio button heights
+  int radioSectionHeight = RADIO_BUTTON_HEIGHT * NUM_RADIO_BUTTONS + 
+                          RADIO_BUTTON_SPACING * (NUM_RADIO_BUTTONS - 1);
+  int sliderSectionY = radioY + radioSectionHeight + PATTERN_SECTION_SPACING;
+  
+  // Add a title for the sliders with calculated positioning
   cp5.addTextlabel("slidersTitle")
     .setText("Adjust Pattern Parameters:")
-    .setPosition(CONTROL_MARGIN, 140)
+    .setPosition(CONTROL_MARGIN, sliderSectionY)
     .setColorValue(color(220))
     .setFont(createFont("Arial", 14))
     .moveTo(patternGroup);
@@ -485,9 +555,13 @@ void setupUI() {
   final int SLIDER_WIDTH = 140; // Significantly narrower to leave room for labels
   final int LABEL_OFFSET = 8;   // Space between slider and its label
   
-  // Add sliders for ring radii - with narrower width to avoid label spillover
+  // Set consistent spacing between sliders
+  final int SLIDER_SPACING = 30;
+  int sliderY = sliderSectionY + 30; // Start position for sliders
+  
+  // Add sliders for ring radii - with better positioning
   Slider innerSlider = cp5.addSlider("innerRingRadius")
-    .setPosition(CONTROL_MARGIN, 180)
+    .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(5, 30)
     .setValue(16)
@@ -495,9 +569,10 @@ void setupUI() {
     .moveTo(patternGroup);
   // Configure label after adding to group
   innerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  sliderY += SLIDER_SPACING;
     
   Slider middleSlider = cp5.addSlider("middleRingRadius")
-    .setPosition(CONTROL_MARGIN, 210)
+    .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(10, 40)
     .setValue(24)
@@ -505,9 +580,10 @@ void setupUI() {
     .moveTo(patternGroup);
   // Configure label after adding to group
   middleSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  sliderY += SLIDER_SPACING;
     
   Slider outerSlider = cp5.addSlider("outerRingRadius")
-    .setPosition(CONTROL_MARGIN, 240)
+    .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(15, 31)
     .setValue(31)
@@ -515,9 +591,10 @@ void setupUI() {
     .moveTo(patternGroup);
   // Configure label after adding to group
   outerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  sliderY += SLIDER_SPACING;
     
   Slider spacingSlider = cp5.addSlider("targetLedSpacingMM")
-    .setPosition(CONTROL_MARGIN, 270)
+    .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(2, 6)
     .setValue(4)
@@ -525,26 +602,29 @@ void setupUI() {
     .moveTo(patternGroup);
   // Configure label after adding to group
   spacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  sliderY += SLIDER_SPACING + 10; // Extra spacing before circle mask section
   
   // Add Circle Mask section title
   cp5.addTextlabel("maskTitle")
     .setText("Circle Mask:")
-    .setPosition(CONTROL_MARGIN, 300)
+    .setPosition(CONTROL_MARGIN, sliderY)
     .setColorValue(color(220))
     .setFont(createFont("Arial", 14))
     .moveTo(patternGroup);
     
   // Add Circle Mask Toggle
   cp5.addToggle("circleMaskToggle")
-    .setPosition(CONTROL_MARGIN + 100, 300)
+    .setPosition(CONTROL_MARGIN + 100, sliderY)
     .setSize(50, 15)
     .setLabel("")
     .setValue(false)
     .moveTo(patternGroup);
+  
+  sliderY += 30; // Space after the title and toggle
     
   // Circle Mask Radius slider
   Slider circleMaskSlider = cp5.addSlider("circleMaskRadius")
-    .setPosition(CONTROL_MARGIN, 330)
+    .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(5, 32)
     .setValue(25)
@@ -552,9 +632,22 @@ void setupUI() {
     .moveTo(patternGroup);
   // Configure label after adding to group
   circleMaskSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // Check if the panel height will fit the controls
+  // Calculate actual height of all elements
+  int actualPatternHeight = sliderY + 15 + 20; // Current Y + slider height + bottom padding
+  
+  // Always update pattern group height to ensure enough room with a minimum buffer
+  int adjustedPatternHeight = Math.max(actualPatternHeight + 20, PATTERN_GROUP_HEIGHT);
+  patternGroup.setBackgroundHeight(adjustedPatternHeight);
+  println("Set pattern group height to: " + adjustedPatternHeight);
     
   // Add control buttons with more consistent spacing
   int buttonWidth = (GROUP_WIDTH - CONTROL_MARGIN*3) / 2;
+  
+  // Calculate dynamic positioning for Controls group
+  final int BUTTON_HEIGHT = 30;
+  final int BUTTON_SPACING = 10;
   
   // Add a title for Controls group
   cp5.addTextlabel("controlsTitle")
@@ -564,63 +657,73 @@ void setupUI() {
     .setFont(createFont("Arial", 14))
     .moveTo(controlGroup);
   
+  // Button positioning
+  int buttonY = 40; // Start after title
+  
   // First row of buttons - larger and more spaced
   cp5.addButton("startButton")
-    .setPosition(CONTROL_MARGIN, 40)
-    .setSize(buttonWidth, 30)
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
     .setLabel("Start")
     .setColorBackground(color(0, 120, 0))
     .moveTo(controlGroup);
     
   cp5.addButton("pauseButton")
-    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 40)
-    .setSize(buttonWidth, 30)
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
     .setLabel("Pause")
     .setColorBackground(color(120, 120, 0))
     .moveTo(controlGroup);
     
   // Second row of buttons
+  buttonY += BUTTON_HEIGHT + BUTTON_SPACING;
+  
   cp5.addButton("stopButton")
-    .setPosition(CONTROL_MARGIN, 80)
-    .setSize(buttonWidth, 30)
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
     .setLabel("Stop")
     .setColorBackground(color(120, 0, 0))
     .moveTo(controlGroup);
     
   cp5.addButton("regenerateButton")
-    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 80)
-    .setSize(buttonWidth, 30)
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
     .setLabel("Regenerate")
     .moveTo(controlGroup);
   
-  // Settings title  
+  // Settings title - position after the buttons
+  buttonY += BUTTON_HEIGHT + BUTTON_SPACING + 10;
+  
   cp5.addTextlabel("settingsTitle")
     .setText("Settings:")
-    .setPosition(CONTROL_MARGIN, 120)
+    .setPosition(CONTROL_MARGIN, buttonY)
     .setColorValue(color(220))
     .setFont(createFont("Arial", 14))
     .moveTo(controlGroup);
+  
+  // Toggles for settings - position after settings title
+  buttonY += 30;
+  final int TOGGLE_HEIGHT = 25;
     
-  // Toggles for settings - first row
   cp5.addToggle("idleToggle")
-    .setPosition(CONTROL_MARGIN, 150)
-    .setSize(buttonWidth, 25)
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setSize(buttonWidth, TOGGLE_HEIGHT)
     .setLabel("Idle Mode")
     .setValue(false)
     .moveTo(controlGroup);
     
   cp5.addToggle("gridToggle")
-    .setPosition(CONTROL_MARGIN*2 + buttonWidth, 150)
-    .setSize(buttonWidth, 25)
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, buttonY)
+    .setSize(buttonWidth, TOGGLE_HEIGHT)
     .setLabel("Show Grid")
     .setValue(true)
     .moveTo(controlGroup);
+  
+  // Interval slider - position after toggles
+  buttonY += TOGGLE_HEIGHT + BUTTON_SPACING + 5;
     
-  // Circle mask toggle was moved to Pattern Settings
-    
-  // Interval slider - made narrower like pattern sliders
   Slider intervalSlider = cp5.addSlider("updateInterval")
-    .setPosition(CONTROL_MARGIN, 190)
+    .setPosition(CONTROL_MARGIN, buttonY)
     .setSize(SLIDER_WIDTH, 20)
     .setRange(100, 2000)
     .setValue(500)
@@ -629,58 +732,84 @@ void setupUI() {
   // Configure label after adding to group
   intervalSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
   
+  // Check if the panel height will fit the controls
+  // Calculate actual height of all elements
+  int actualControlHeight = buttonY + 20 + 20; // Current Y + slider height + bottom padding
+  
+  // Always update control group height to ensure enough room with a minimum buffer
+  int adjustedControlHeight = Math.max(actualControlHeight + 20, CONTROL_GROUP_HEIGHT);
+  controlGroup.setBackgroundHeight(adjustedControlHeight);
+  println("Set control group height to: " + adjustedControlHeight);
+  
   // Circle mask radius slider was moved to Pattern Settings
     
-  // Add hardware controls with better spacing
+  // Add hardware controls with dynamic positioning
+  int hardwareY = 10; // Starting position
+  final int HARDWARE_SECTION_SPACING = 20; // Spacing specific to hardware sections
   
   // Add a title for Hardware group
   cp5.addTextlabel("hardwareTitle")
     .setText("Hardware Configuration:")
-    .setPosition(CONTROL_MARGIN, 10)
+    .setPosition(CONTROL_MARGIN, hardwareY)
     .setColorValue(color(220))
     .setFont(createFont("Arial", 14))
     .moveTo(hardwareGroup);
   
   // Mode selection toggle
+  hardwareY += 30;
   cp5.addToggle("simulationToggle")
-    .setPosition(CONTROL_MARGIN, 40)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 30)
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
     .setLabel("Simulation Mode")
     .setValue(true)
     .moveTo(hardwareGroup);
     
   // Connection section
+  hardwareY += BUTTON_HEIGHT + HARDWARE_SECTION_SPACING;
   cp5.addTextlabel("connectionTitle")
     .setText("Arduino Connection:")
-    .setPosition(CONTROL_MARGIN, 90)
+    .setPosition(CONTROL_MARGIN, hardwareY)
     .setColorValue(color(220))
     .setFont(createFont("Arial", 14))
     .moveTo(hardwareGroup);
     
   // Serial port selection
+  hardwareY += 30;
+  int LIST_HEIGHT = 120;
   cp5.addScrollableList("serialPortsList")
-    .setPosition(CONTROL_MARGIN, 120)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 120)
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, LIST_HEIGHT)
     .setBarHeight(25)
     .setItemHeight(25)
     .setLabel("Serial Port")
     .moveTo(hardwareGroup);
     
   // Connection button
+  hardwareY += LIST_HEIGHT + BUTTON_SPACING;
   cp5.addButton("connectButton")
-    .setPosition(CONTROL_MARGIN, 250)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 30)
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
     .setLabel("Connect to Hardware")
     .setColorBackground(color(0, 0, 120))
     .moveTo(hardwareGroup);
     
-  // Upload button  
+  // Upload button
+  hardwareY += BUTTON_HEIGHT + BUTTON_SPACING;
   cp5.addButton("uploadPatternButton")
-    .setPosition(CONTROL_MARGIN, 290)
-    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, 30)
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
     .setLabel("Upload Pattern to Hardware")
     .setColorBackground(color(0, 120, 120))
     .moveTo(hardwareGroup);
+    
+  // Check if the panel height will fit the controls
+  // Calculate actual height of all elements
+  int actualHardwareHeight = hardwareY + BUTTON_HEIGHT + 20; // Current Y + button height + bottom padding
+  
+  // Always update hardware group height to ensure enough room with a minimum buffer
+  int adjustedHardwareHeight = Math.max(actualHardwareHeight + 20, HARDWARE_GROUP_HEIGHT);
+  hardwareGroup.setBackgroundHeight(adjustedHardwareHeight);
+  println("Set hardware group height to: " + adjustedHardwareHeight);
     
   // Create accordion
   accordion = cp5.addAccordion("acc")
@@ -693,8 +822,19 @@ void setupUI() {
   // Open just the first panel by default, to avoid overlap
   accordion.open(0);
   
-  // Change accordion mode to not allow multiple open panels
+  // Change accordion mode to not allow multiple open panels - this is essential to prevent UI overlaps
   accordion.setCollapseMode(Accordion.SINGLE);
+  
+  // Calculate the maximum height the accordion can take
+  int maxAccordionHeight = height - 60; // Allow some margin from the window height
+  
+  // Adjust group heights to ensure they fit within the window
+  int maxGroupHeight = maxAccordionHeight - (BAR_HEIGHT * 3) - 20; // Account for accordion headers
+  
+  // Set maximum height for each group to prevent them from exceeding window bounds
+  patternGroup.setBackgroundHeight(min(PATTERN_GROUP_HEIGHT, maxGroupHeight));
+  controlGroup.setBackgroundHeight(min(CONTROL_GROUP_HEIGHT, maxGroupHeight));
+  hardwareGroup.setBackgroundHeight(min(HARDWARE_GROUP_HEIGHT, maxGroupHeight));
 }
 
 // Event handlers for UI components
