@@ -17,9 +17,11 @@ final int MATRIX_WIDTH = 64;
 final int MATRIX_HEIGHT = 64;
 
 // Display settings
-final int CELL_SIZE = 10;         // Size of each LED in pixels
-final int GRID_PADDING = 50;      // Padding around the grid
-boolean showGrid = true;          // Whether to show grid lines
+final int CELL_SIZE = 8;          // Size of each LED in pixels 
+final int GRID_PADDING_LEFT = 240; // Left padding for grid (moved to the right)
+final int GRID_PADDING_TOP = 50;   // Top padding for grid
+final int INFO_PANEL_WIDTH = 220;  // Width of the info panel on the left
+boolean showGrid = true;           // Whether to show grid lines
 
 // Pattern settings (same as Arduino code)
 final int INNER_RING_RADIUS = 27;
@@ -69,7 +71,7 @@ boolean receivingPattern = false;
 
 void setup() {
   // Create window with appropriate size
-  size(740, 740);  // Window size = grid + 2*padding
+  size(800, 600);  // Wider window with info panel and visualization side by side
   
   // Initialize the patterns
   ledPattern = new boolean[MATRIX_HEIGHT][MATRIX_WIDTH];
@@ -119,33 +121,92 @@ void draw() {
 }
 
 void drawModeIndicator() {
+  // Draw the info panel background
+  fill(40);
+  noStroke();
+  rect(0, 0, INFO_PANEL_WIDTH, height);
+  
+  // Draw panel title
+  fill(200);
+  textAlign(CENTER, TOP);
+  textSize(16);
+  text("LED MATRIX VISUALIZER", INFO_PANEL_WIDTH/2, 20);
+  
+  // Draw separator line
+  stroke(100);
+  line(10, 45, INFO_PANEL_WIDTH-10, 45);
+  
+  // Draw status information
   fill(255);
+  textAlign(LEFT, TOP);
+  textSize(14);
+  
   String modeText = simulationMode ? "SIMULATION MODE" : "HARDWARE MODE";
   String patternText = centerOnly ? "CENTER ONLY" : "FULL PATTERN";
   String statusText = running ? "RUNNING" : "PAUSED";
   
-  textAlign(LEFT, TOP);
-  text("Mode: " + modeText, 10, 10);
-  text("Pattern: " + patternText, 10, 30);
-  text("Status: " + statusText, 10, 50);
+  int yOffset = 60;
+  text("Mode:", 20, yOffset);
+  text(modeText, 120, yOffset);
+  
+  yOffset += 25;
+  text("Pattern:", 20, yOffset);
+  text(patternText, 120, yOffset);
+  
+  yOffset += 25;
+  text("Status:", 20, yOffset);
+  text(statusText, 120, yOffset);
   
   if (!simulationMode) {
+    yOffset += 25;
     String connectionText = serialConnected ? "CONNECTED" : "NOT CONNECTED";
-    text("Arduino: " + connectionText, 10, 70);
+    text("Arduino:", 20, yOffset);
+    text(connectionText, 120, yOffset);
   }
   
+  // Draw separator line
+  stroke(100);
+  line(10, yOffset + 20, INFO_PANEL_WIDTH-10, yOffset + 20);
+  
   // Display current LED position
-  text("Current LED: x=" + currentLedX + ", y=" + currentLedY, 10, height - 30);
+  yOffset += 40;
+  text("Current LED:", 20, yOffset);
+  text("x = " + currentLedX, 20, yOffset + 25);
+  text("y = " + currentLedY, 20, yOffset + 50);
+  
+  // Draw controls help
+  yOffset = height - 150;
+  stroke(100);
+  line(10, yOffset - 10, INFO_PANEL_WIDTH-10, yOffset - 10);
+  
+  fill(200);
+  text("CONTROLS:", 20, yOffset);
+  fill(255);
+  text("s - Toggle simulation/hardware", 20, yOffset + 25);
+  text("p - Toggle pattern mode", 20, yOffset + 50);
+  text("Space - Pause/resume", 20, yOffset + 75);
+  text("g - Toggle grid", 20, yOffset + 100);
 }
 
 void drawLEDMatrix() {
   // Calculate grid position
-  int gridX = GRID_PADDING;
-  int gridY = GRID_PADDING;
+  int gridX = GRID_PADDING_LEFT;
+  int gridY = GRID_PADDING_TOP;
+  
+  // Draw matrix area background
+  fill(20);
+  noStroke();
+  rect(INFO_PANEL_WIDTH, 0, width - INFO_PANEL_WIDTH, height);
+  
+  // Draw matrix title
+  fill(200);
+  textAlign(CENTER, TOP);
+  textSize(14);
+  text("64x64 RGB LED MATRIX", gridX + (MATRIX_WIDTH * CELL_SIZE) / 2, 20);
   
   // Draw grid background
   noStroke();
-  fill(40);
+  fill(30);
   rect(gridX - 1, gridY - 1, MATRIX_WIDTH * CELL_SIZE + 2, MATRIX_HEIGHT * CELL_SIZE + 2);
   
   // Draw each LED cell
@@ -194,13 +255,29 @@ void drawLEDMatrix() {
   if (showGrid) {
     stroke(60);
     // Draw vertical lines
-    for (int x = 0; x <= MATRIX_WIDTH; x += 4) {
+    for (int x = 0; x <= MATRIX_WIDTH; x += 8) {
       line(gridX + x * CELL_SIZE, gridY, gridX + x * CELL_SIZE, gridY + MATRIX_HEIGHT * CELL_SIZE);
     }
     // Draw horizontal lines
-    for (int y = 0; y <= MATRIX_HEIGHT; y += 4) {
+    for (int y = 0; y <= MATRIX_HEIGHT; y += 8) {
       line(gridX, gridY + y * CELL_SIZE, gridX + MATRIX_WIDTH * CELL_SIZE, gridY + y * CELL_SIZE);
     }
+  }
+  
+  // Draw coordinates
+  fill(150);
+  textSize(10);
+  textAlign(CENTER, TOP);
+  
+  // Draw x-axis coordinates (only every 8 for clarity)
+  for (int x = 0; x < MATRIX_WIDTH; x += 8) {
+    text(str(x), gridX + x * CELL_SIZE + CELL_SIZE/2, gridY + MATRIX_HEIGHT * CELL_SIZE + 5);
+  }
+  
+  // Draw y-axis coordinates (only every 8 for clarity)
+  textAlign(RIGHT, CENTER);
+  for (int y = 0; y < MATRIX_HEIGHT; y += 8) {
+    text(str(y), gridX - 5, gridY + y * CELL_SIZE + CELL_SIZE/2);
   }
 }
 
