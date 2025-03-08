@@ -6,6 +6,11 @@
  * for each illumination to capture the resulting diffraction patterns.
  */
 
+// Matrix dimensions
+#define MATRIX_WIDTH 64
+#define MATRIX_HEIGHT 64
+#define MATRIX_HALF_HEIGHT 32  // Half height for split panel addressing
+
 // Configuration parameters
 #define USE_COLOR 2      // 0 = off, 1 = red, 2 = green, 4 = blue. Can be combined with bitwise OR
 #define NUMBER_CYCLES 1  // Repeat the entire illumination sequence this many times
@@ -16,7 +21,7 @@
 
 // LED illumination pattern - 1 indicates an LED that should be turned on during the sequence
 // This pattern forms a circular/ring configuration typical for Fourier ptycography
-int LEDpattern[64][64] = {
+int LEDpattern[MATRIX_HEIGHT][MATRIX_WIDTH] = {
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -84,7 +89,7 @@ int LEDpattern[64][64] = {
 
 // Center-only illumination pattern - activates only the central LED for reference imaging
 // Used when CENTER_ONLY is set to 1
-int LEDcenter[64][64] = {
+int LEDcenter[MATRIX_HEIGHT][MATRIX_WIDTH] = {
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
 {0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0},
@@ -172,9 +177,16 @@ int LEDcenter[64][64] = {
 #define COLOR_RED 1     // Bit 0 controls red LEDs
 #define COLOR_GREEN 2   // Bit 1 controls green LEDs
 #define COLOR_BLUE 4    // Bit 2 controls blue LEDs
+#define COLOR_MAX 7     // Maximum valid color value (all colors on)
 
 // Camera control pin
 #define PIN_PHOTO_TRIGGER 5  // Pin used to trigger camera shutter
+
+// Timing constants
+#define SERIAL_BAUD_RATE 9600      // Serial communication speed
+#define SETUP_DELAY 2000           // Delay on startup in milliseconds
+#define CAMERA_PULSE_WIDTH 100     // Camera trigger pulse width in milliseconds
+#define LED_UPDATE_INTERVAL 10000  // LED refresh rate in microseconds (10ms = 100Hz)
 
 // Global variables for LED control
 int led_x, led_y, led_color;  // Current LED position and color
@@ -185,8 +197,8 @@ IntervalTimer led_timer;      // Timer for regular LED updates
  */
 void setup() {
 // Initialize serial communication for debugging and status messages
-Serial.begin(9600);
-delay(2000);  // Allow time for the serial connection to establish
+Serial.begin(SERIAL_BAUD_RATE);
+delay(SETUP_DELAY);  // Allow time for the serial connection to establish
 
 // Configure all control pins as outputs
 pinMode(PIN_PHOTO_TRIGGER, OUTPUT);  // Camera trigger
@@ -215,8 +227,7 @@ pinMode(PIN_LED_B1, OUTPUT);  // Blue - upper half
 digitalWrite(PIN_LED_BL, HIGH);
 
 // Initialize the timer for LED updates
-// 10,000 microseconds = 10ms update rate (100Hz)
-led_timer.begin(update_led, 10000);
+led_timer.begin(update_led, LED_UPDATE_INTERVAL);
 
 
 // Execute the LED illumination sequence
@@ -226,9 +237,9 @@ for(int cycle_count = 0; cycle_count < NUMBER_CYCLES; cycle_count++)
   int frame_count = 0;  // Keep track of frames for status reporting
   
   // Scan through the entire LED matrix
-  for(int x = 0; x <= 63; x++)
+  for(int x = 0; x < MATRIX_WIDTH; x++)
   {
-    for(int y = 0; y <= 63; y++)
+    for(int y = 0; y < MATRIX_HEIGHT; y++)
     {
       // Check if this LED should be illuminated according to the pattern
       #if(CENTER_ONLY == 1)
@@ -275,19 +286,20 @@ for(int cycle_count = 0; cycle_count < NUMBER_CYCLES; cycle_count++)
 void loop() {
   // The main work is done in setup() and via the timer interrupt
   // This loop is intentionally kept empty with minimal delay
-  delay(1);
+  delay(1);  // 1ms delay to prevent CPU hogging
 }
 
 
 
 /**
  * Triggers the camera to take a photo
- * Sends a 100ms pulse on the trigger pin to activate camera shutter
+ * Sends a pulse on the trigger pin to activate camera shutter
+ * The pulse width is defined by CAMERA_PULSE_WIDTH
  */
 void trigger_photo()
 {
   digitalWrite(PIN_PHOTO_TRIGGER, HIGH);
-  delay(100);  // 100ms pulse width for reliable triggering
+  delay(CAMERA_PULSE_WIDTH);  // Pulse width for reliable camera triggering
   digitalWrite(PIN_PHOTO_TRIGGER, LOW);
 }
 
@@ -300,7 +312,7 @@ void update_led()
 {
   // Note the coordinate transformation: x and y are swapped, and x is inverted
   // This accounts for the physical layout of the LED matrix
-  send_led(led_y, 63-led_x, led_color);
+  send_led(led_y, MATRIX_WIDTH-1-led_x, led_color);
 }
 
 /**
@@ -313,7 +325,7 @@ void update_led()
 void send_led(int x, int y, int color)
 {
   // Validate parameters to prevent addressing non-existent LEDs
-  if(x < 0 || x > 63 || y < 0 || y > 63 || color > 7)
+  if(x < 0 || x >= MATRIX_WIDTH || y < 0 || y >= MATRIX_HEIGHT || color > COLOR_MAX)
     {
       return;
     }
@@ -326,29 +338,33 @@ void send_led(int x, int y, int color)
   digitalWrite(PIN_LED_A0, HIGH);
   digitalWrite(PIN_LED_A0, LOW);
 
-  // Set row address bits (5-bit address for 32 rows per half)
-  // The y%32 handles the half-panel addressing
-  digitalWriteFast(PIN_LED_A0, y%32 & 1);    // A0 - LSB of row address
-  digitalWriteFast(PIN_LED_A1, y%32 & 2);    // A1
-  digitalWriteFast(PIN_LED_A2, y%32 & 4);    // A2
-  digitalWriteFast(PIN_LED_A3, y%32 & 8);    // A3
-  digitalWriteFast(PIN_LED_A4, y%32 & 16);   // A4 - MSB of row address
+  // Set row address bits (5-bit address for rows within each half)
+  // The y%MATRIX_HALF_HEIGHT handles the half-panel addressing
+  digitalWriteFast(PIN_LED_A0, y%MATRIX_HALF_HEIGHT & 1);    // A0 - LSB of row address
+  digitalWriteFast(PIN_LED_A1, y%MATRIX_HALF_HEIGHT & 2);    // A1
+  digitalWriteFast(PIN_LED_A2, y%MATRIX_HALF_HEIGHT & 4);    // A2
+  digitalWriteFast(PIN_LED_A3, y%MATRIX_HALF_HEIGHT & 8);    // A3
+  digitalWriteFast(PIN_LED_A4, y%MATRIX_HALF_HEIGHT & 16);   // A4 - MSB of row address
   
   // Shift in data for each column
-  for(int i=0; i<64; i++)
+  for(int i=0; i < MATRIX_WIDTH; i++)
     {
+      // Calculate which half of the panel we're addressing
+      bool isLowerHalf = (y < MATRIX_HALF_HEIGHT);
+      bool isTargetColumn = (i == x);
+      
       // Set green data pins for current column
-      // G0 for lower half (y < 32), G1 for upper half (y >= 32)
-      digitalWriteFast(PIN_LED_G0, i == x && y < 32 && color & COLOR_GREEN);
-      digitalWriteFast(PIN_LED_G1, i == x && y >= 32 && color & COLOR_GREEN);
+      // G0 for lower half, G1 for upper half
+      digitalWriteFast(PIN_LED_G0, isTargetColumn && isLowerHalf && (color & COLOR_GREEN));
+      digitalWriteFast(PIN_LED_G1, isTargetColumn && !isLowerHalf && (color & COLOR_GREEN));
 
       // Set red data pins for current column
-      digitalWriteFast(PIN_LED_R0, i == x && y < 32 && color & COLOR_RED);
-      digitalWriteFast(PIN_LED_R1, i == x && y >= 32 && color & COLOR_RED);
+      digitalWriteFast(PIN_LED_R0, isTargetColumn && isLowerHalf && (color & COLOR_RED));
+      digitalWriteFast(PIN_LED_R1, isTargetColumn && !isLowerHalf && (color & COLOR_RED));
       
       // Set blue data pins for current column
-      digitalWriteFast(PIN_LED_B0, i == x && y < 32 && color & COLOR_BLUE);
-      digitalWriteFast(PIN_LED_B1, i == x && y >= 32 && color & COLOR_BLUE);
+      digitalWriteFast(PIN_LED_B0, isTargetColumn && isLowerHalf && (color & COLOR_BLUE));
+      digitalWriteFast(PIN_LED_B1, isTargetColumn && !isLowerHalf && (color & COLOR_BLUE));
 
       // Clock in the data for this column
       digitalWrite(PIN_LED_CK, HIGH);
