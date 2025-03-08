@@ -1,6 +1,10 @@
 # Processing Visualizers for Ptycography LED Matrix
 
-This directory contains several Processing sketches for visualizing the LED patterns used in the Ptycography LED Matrix program.
+This directory contains several Processing sketches for visualizing and controlling the LED patterns used in the Ptycography LED Matrix program. 
+
+- The main visualizer integrates with the Arduino hardware
+- The CentralController provides a unified control interface
+- Additional tools help visualize and compare patterns
 
 ## Available Visualizers
 
@@ -35,6 +39,26 @@ Shows the original and resized LED patterns side by side for direct comparison, 
 - Open Processing and load the `ComparePatterns/ComparePatterns.pde` sketch
 - Press 'g' to toggle grid lines (also shows the maximum radius circle)
 - Press 's' to save the comparison as an image
+
+### 4. CentralController
+A comprehensive application that serves as the central control point for the entire system, supporting both simulation and hardware control through a unified interface.
+
+**Features:**
+- Complete UI for all pattern parameters and sequence control
+- Hardware mode for controlling physical LED matrix via Arduino/Teensy
+- Simulation mode for running without hardware
+- Multiple pattern types (concentric rings, center only, spiral, grid)
+- Real-time parameter adjustments without reprogramming Arduino
+- Full status display and progress tracking
+
+**Usage:**
+- Install the ControlP5 library in Processing
+- Upload the `CentralController/LED_Matrix_Hardware_Interface.ino` to your Arduino/Teensy (once only)
+- Open the `CentralController/CentralController.pde` sketch
+- Use the control panel to adjust settings and control the system
+- See `CentralController/README.md` for detailed instructions
+
+This controller is part of the central controller architecture available in the `processing-central-control` branch.
 
 ## Setup Instructions
 
