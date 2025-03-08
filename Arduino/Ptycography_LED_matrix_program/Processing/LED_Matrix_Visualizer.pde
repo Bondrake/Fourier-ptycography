@@ -413,12 +413,12 @@ void serialEvent(Serial port) {
         try {
           int x = Integer.parseInt(parts[0]);
           int y = Integer.parseInt(parts[1]);
-          int color = Integer.parseInt(parts[2]);
+          int colorValue = Integer.parseInt(parts[2]);
           
           // Update the current LED
           currentLedX = x;
           currentLedY = y;
-          currentColor = color;
+          currentColor = colorValue;
         } catch (Exception e) {
           println("Error parsing LED data: " + e.getMessage());
         }
