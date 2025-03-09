@@ -12,6 +12,7 @@
 // Forward declarations
 class IdleManager;
 class VisualizationManager;
+class CameraManager;
 
 // Command definitions
 #define CMD_IDLE_ENTER 'i'         // Command to manually enter idle mode
@@ -19,11 +20,13 @@ class VisualizationManager;
 #define CMD_VIS_START 'v'          // Command to start visualization mode
 #define CMD_VIS_STOP 'q'           // Command to stop visualization mode
 #define CMD_PATTERN_EXPORT 'p'     // Command to export the full pattern
+#define CMD_SET_CAMERA 'C'         // Command to configure camera settings
 
 class SerialCommandManager {
   public:
     // Constructor
     SerialCommandManager(IdleManager* idleManager, VisualizationManager* visManager,
+                        CameraManager* cameraManager = nullptr,
                         unsigned long serialTimeout = 5000, int serialRetries = 3);
     
     // Initialization
@@ -42,6 +45,7 @@ class SerialCommandManager {
     // References to managers
     IdleManager* _idleManager;
     VisualizationManager* _visManager;
+    CameraManager* _cameraManager;
     
     // Serial settings
     unsigned long _serialTimeout;
@@ -54,6 +58,7 @@ class SerialCommandManager {
     void handleVisStartCommand();
     void handleVisStopCommand();
     void handlePatternExportCommand();
+    void handleCameraCommand();
     void handleUnknownCommand(char cmd);
 };
 

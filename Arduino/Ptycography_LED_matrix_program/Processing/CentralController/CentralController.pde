@@ -1,0 +1,1913 @@
+/**
+ * Central Controller for Ptycography LED Matrix
+ * 
+ * This Processing sketch serves as the central control point for the Ptycography 
+ * LED matrix system. It provides a unified interface for both simulation and
+ * hardware control, eliminating the need for separate Arduino programming.
+ * 
+ * Features:
+ * - Complete UI for controlling all aspects of the system
+ * - Hardware mode for controlling a physical LED matrix via Arduino/Teensy
+ * - Simulation mode for running without hardware
+ * - Pattern creation and editing tools
+ * - Sequence control and monitoring
+ * - Parameter adjustment without reprogramming Arduino
+ */
+
+// Import necessary libraries
+import controlP5.*;
+import processing.serial.*;
+
+// Constants
+final int MATRIX_WIDTH = 64;
+final int MATRIX_HEIGHT = 64;
+final int CELL_SIZE = 8;
+final int INFO_PANEL_WIDTH = 330;   // Width of the info panel
+final int GRID_PADDING_LEFT = INFO_PANEL_WIDTH + 20;  // Position grid relative to info panel
+final int GRID_PADDING_TOP = 50;
+final int CONTROL_PANEL_HEIGHT = 200;
+
+// Pattern types
+final int PATTERN_CONCENTRIC_RINGS = 0;
+final int PATTERN_CENTER_ONLY = 1;
+final int PATTERN_SPIRAL = 2;
+final int PATTERN_GRID = 3;
+
+// Pattern parameters (default values)
+// Concentric rings pattern parameters
+int innerRingRadius = 16;
+int middleRingRadius = 24;
+int outerRingRadius = 31;
+
+// Spiral pattern parameters
+int spiralMaxRadius = 30;
+int spiralTurns = 3;
+
+// Grid pattern parameters
+int gridSpacing = 1;       // Default to spacing of 1 (every other LED)
+int gridPointSize = 1;     // Size of each grid point (1 = single LED, 2 = 2x2 LEDs, etc.)
+int gridOffsetX = 0;       // X offset for the grid (0-4 pixels)
+int gridOffsetY = 0;       // Y offset for the grid (0-4 pixels)
+
+// Camera parameters
+boolean cameraEnabled = true;    // Camera triggering enabled
+int cameraPreDelay = 400;        // Delay in ms before triggering (for auto-exposure)
+int cameraPulseWidth = 100;      // Camera trigger pulse width in ms
+int cameraPostDelay = 1500;      // Delay in ms after triggering (for capture)
+
+// Camera status tracking
+boolean cameraTriggerActive = false;  // Whether camera is currently being triggered
+int cameraLastTriggerTime = 0;        // Timestamp of last trigger
+int cameraErrorCode = 0;              // Current error code (0 = no error)
+String cameraErrorStatus = "";        // Human-readable error message
+
+// Common parameters
+float ledPitchMM = 2.0;
+float targetLedSpacingMM = 2.0;  // Default to 2mm physical spacing
+int ledSkip;
+int patternType = PATTERN_GRID;  // Default to grid pattern
+boolean circleMaskMode = true;   // Default to circle mask enabled
+int circleMaskRadius = 19;       // Default mask radius
+
+// Arduino communication
+Serial arduinoPort;
+boolean hardwareConnected = false;
+String[] availablePorts;
+
+// Command codes for Arduino communication
+final char CMD_SET_PATTERN = 'P';     // Set pattern type
+final char CMD_SET_INNER_RADIUS = 'I';  // Set inner ring radius
+final char CMD_SET_MIDDLE_RADIUS = 'M'; // Set middle ring radius
+final char CMD_SET_OUTER_RADIUS = 'O';  // Set outer ring radius
+final char CMD_SET_SPACING = 'S';      // Set LED spacing
+final char CMD_START_SEQUENCE = 'R';   // Run sequence
+final char CMD_STOP_SEQUENCE = 'X';    // Stop sequence
+final char CMD_ENTER_IDLE = 'i';       // Enter idle mode
+final char CMD_EXIT_IDLE = 'a';        // Exit idle mode
+final char CMD_SET_LED = 'L';          // Set specific LED
+final char CMD_SET_CAMERA = 'C';       // Set camera trigger settings
+
+// Color definitions
+final color OFF_COLOR = color(20);
+final color RED_COLOR = color(255, 0, 0);
+final color GREEN_COLOR = color(0, 255, 0);
+final color BLUE_COLOR = color(0, 0, 255);
+final color YELLOW_COLOR = color(255, 255, 0);
+final color MAGENTA_COLOR = color(255, 0, 255);
+final color CYAN_COLOR = color(0, 255, 255);
+final color WHITE_COLOR = color(255, 255, 255);
+final color PATTERN_COLOR = color(0, 100, 0);
+
+// Color constants for bitwise operations
+final int COLOR_RED = 1;
+final int COLOR_GREEN = 2;
+final int COLOR_BLUE = 4;
+
+// Operation modes
+boolean simulationMode = true;
+boolean showGrid = true;
+boolean running = false;
+boolean paused = false;
+boolean idleMode = false;
+
+// Pattern storage
+boolean[][] ledPattern;
+int currentLedX = -1;
+int currentLedY = -1;
+int currentColor = COLOR_GREEN;
+int sequenceIndex = 0;
+ArrayList<int[]> illuminationSequence;
+
+// Timing variables
+int lastUpdateTime = 0;
+int updateInterval = 500;  // ms between LED updates
+int idleBlinkInterval = 60000;  // 60 seconds
+int lastBlinkTime = 0;
+
+// UI components
+ControlP5 cp5;
+Accordion accordion;
+
+// Pattern parameter controllers
+Group concentricRingsGroup; // Group for concentric rings pattern sliders
+Group spiralGroup;          // Group for spiral pattern sliders
+Group gridGroup;            // Group for grid pattern sliders
+Group centerGroup;          // Group for center-only pattern sliders
+Group cameraGroup;          // Group for camera control settings
+
+void setup() {
+  // Calculate window size based on matrix dimensions and UI elements
+  int windowWidth = INFO_PANEL_WIDTH + MATRIX_WIDTH * CELL_SIZE + 40; // Info panel + matrix + padding
+  int windowHeight = max(MATRIX_HEIGHT * CELL_SIZE + GRID_PADDING_TOP + 50, 780); // Matrix height or minimum UI height
+  
+  // Note: In Processing, the size() function must have constant parameters
+  // We can't use variables for the size, so we'll keep the fixed dimensions
+  // but we'll use calculated positions for all elements
+  size(1080, 1100); // Increased height by 40px to ensure enough room for everything
+  
+  // Initialize the pattern arrays
+  ledPattern = new boolean[MATRIX_HEIGHT][MATRIX_WIDTH];
+  
+  // Calculate LED skip value based on spacing
+  ledSkip = round(targetLedSpacingMM / ledPitchMM);
+  if (ledSkip < 1) ledSkip = 1;
+  
+  // Initialize UI
+  setupUI();
+  
+  // Generate the initial pattern
+  regeneratePattern();
+  
+  // Create illumination sequence
+  generateIlluminationSequence();
+  
+  // List available serial ports
+  availablePorts = Serial.list();
+  updatePortList();
+  
+  // Set up the display
+  background(0);
+  frameRate(30);
+  textSize(14);
+  
+  println("Ptycography LED Matrix Central Controller");
+  println("Hardware Mode: " + (simulationMode ? "Disabled" : "Enabled"));
+}
+
+void draw() {
+  // Clear the background
+  background(0);
+  
+  // Draw the information panel
+  drawInfoPanel();
+  
+  // Draw the LED matrix
+  drawLEDMatrix();
+  
+  // Update the simulation if running in simulation mode
+  if (simulationMode && running && !paused) {
+    updateSimulation();
+  }
+  
+  // Handle idle mode in simulation mode
+  if (simulationMode && idleMode) {
+    handleIdleMode();
+  }
+  
+  // Process any serial data if connected to hardware
+  if (!simulationMode && hardwareConnected) {
+    processSerialData();
+  }
+}
+
+void drawInfoPanel() {
+  final int SECTION_SPACING = 15;  // Space between sections
+  final int FIELD_SPACING = 22;    // Space between fields (slightly reduced from original 25)
+  final int LABEL_WIDTH = 100;     // Width for labels
+  final int VALUE_WIDTH = 120;     // Width for values
+  
+  // Draw the info panel background
+  fill(40);
+  noStroke();
+  rect(0, 0, INFO_PANEL_WIDTH, height);
+  
+  // Draw panel title
+  fill(200);
+  textAlign(CENTER, TOP);
+  textSize(16);
+  text("LED MATRIX CONTROLLER", INFO_PANEL_WIDTH/2, 10);
+  
+  // Draw separator line
+  stroke(100);
+  line(10, 35, INFO_PANEL_WIDTH-10, 35);
+  
+  // Calculate the starting position for the status information
+  // Position it relative to the window height and accordion panels
+  int panelsHeight = 40 + cp5.get(Group.class, "Pattern Settings").getBackgroundHeight() + 
+                    cp5.get(Group.class, "Controls").getBackgroundHeight() + 
+                    cp5.get(Group.class, "Hardware").getBackgroundHeight() + 60; // include accordion headers
+  
+  // Calculate status panel size requirements with precise measurements
+  // Account for additional camera fields when enabled
+  int cameraFieldCount = cameraEnabled ? 3 : 1; // Base camera status + trigger info when enabled
+  if (cameraEnabled && cameraErrorStatus != null && !cameraErrorStatus.isEmpty()) cameraFieldCount++;
+  if (cameraEnabled && cameraLastTriggerTime > 0) cameraFieldCount += 3; // Last trigger time + timing diagram
+  
+  final int STATUS_SECTION_HEIGHT = 25 + ((5 + cameraFieldCount) * FIELD_SPACING); // Status header + fields
+  final int CURRENT_LED_SECTION_HEIGHT = 25 + (2 * FIELD_SPACING); // LED header + 2 fields
+  final int HARDWARE_SECTION_HEIGHT = !simulationMode ? (25 + (2 * FIELD_SPACING)) : 0; // Hardware section
+  final int SEQUENCE_SECTION_HEIGHT = (illuminationSequence != null && illuminationSequence.size() > 0) ? 
+                                    (25 + FIELD_SPACING + 30) : 0; // Sequence section
+  
+  // Total height needed for status panel with proper spacing
+  int statusPanelHeight = STATUS_SECTION_HEIGHT + CURRENT_LED_SECTION_HEIGHT + 
+                         HARDWARE_SECTION_HEIGHT + SEQUENCE_SECTION_HEIGHT + 
+                         (3 * SECTION_SPACING); // Spacing between sections
+  
+  // Calculate how much space remains for status panel
+  int availableSpace = height - panelsHeight - 20; // 20px bottom margin
+  
+  // Start position for information display
+  int yPos;
+  
+  // Position the status panel higher up to make room for the extended camera status
+  // Subtract 60 pixels from the original position to prevent overflow
+  yPos = Math.max(20, Math.min(panelsHeight - 60, height - statusPanelHeight - 90));
+  
+  // If there's still not enough space, give a warning but keep all info
+  if (yPos + statusPanelHeight > height) {
+    yPos = height - statusPanelHeight - 20; // Force it to fit
+    println("Note: Repositioned status panel to ensure visibility");
+  }
+  
+  // SECTION: Status Information
+  drawSectionHeader("STATUS", yPos);
+  yPos += 25;
+  
+  // Draw mode information with consistent spacing
+  fill(255);
+  textAlign(LEFT, TOP);
+  textSize(14);
+  
+  // Prepare text values
+  String modeText = simulationMode ? "SIMULATION" : "HARDWARE";
+  String statusText = running ? (paused ? "PAUSED" : "RUNNING") : "STOPPED";
+  String idleText = idleMode ? "IDLE MODE" : "ACTIVE";
+  String maskText = circleMaskMode ? "ON (r=" + circleMaskRadius + ")" : "OFF";
+  String cameraText = cameraEnabled ? "ENABLED" : "DISABLED";
+  String patternText = "";
+  switch (patternType) {
+    case PATTERN_CONCENTRIC_RINGS: patternText = "CONCENTRIC RINGS"; break;
+    case PATTERN_CENTER_ONLY: patternText = "CENTER ONLY"; break;
+    case PATTERN_SPIRAL: patternText = "SPIRAL"; break;
+    case PATTERN_GRID: patternText = "GRID"; break;
+  }
+  
+  // Draw status fields
+  drawField("Mode:", modeText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Status:", statusText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Power:", idleText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Pattern:", patternText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Mask:", maskText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Camera:", cameraText, yPos);
+  yPos += FIELD_SPACING;
+  
+  // If camera is enabled, show detailed status
+  if (cameraEnabled) {
+    // Show active/idle status
+    String triggerText = cameraTriggerActive ? "ACTIVE" : "IDLE";
+    drawField("Trigger:", triggerText, yPos, cameraTriggerActive ? color(255, 0, 0) : color(220));
+    yPos += FIELD_SPACING;
+    
+    // Show last trigger time
+    if (cameraLastTriggerTime > 0) {
+      int timeSince = millis() - cameraLastTriggerTime;
+      String timeText = timeSince < 5000 ? (timeSince + "ms ago") : "Ready";
+      drawField("Last Trigger:", timeText, yPos);
+      yPos += FIELD_SPACING;
+    }
+    
+    // Show error status if any
+    if (cameraErrorStatus != null && !cameraErrorStatus.isEmpty()) {
+      drawField("Error:", cameraErrorStatus, yPos, color(255, 200, 0));
+      yPos += FIELD_SPACING;
+    }
+    
+    // Add timing visualization if in use
+    if (cameraLastTriggerTime > 0) {
+      yPos += 10;
+      
+      // Draw timing bar showing pre-delay, trigger and post-delay periods
+      int barWidth = 180;
+      int barHeight = 12;
+      int barX = 20;
+      float totalTime = cameraPreDelay + cameraPulseWidth + cameraPostDelay;
+      float preDelayWidth = (cameraPreDelay / totalTime) * barWidth;
+      float pulseWidth = (cameraPulseWidth / totalTime) * barWidth;
+      float postDelayWidth = (cameraPostDelay / totalTime) * barWidth;
+      
+      // Background
+      stroke(100);
+      fill(30);
+      rect(barX, yPos, barWidth, barHeight);
+      
+      // Pre-delay section (blue)
+      fill(0, 0, 180);
+      noStroke();
+      rect(barX, yPos, preDelayWidth, barHeight);
+      
+      // Pulse width section (red)
+      fill(180, 0, 0);
+      rect(barX + preDelayWidth, yPos, pulseWidth, barHeight);
+      
+      // Post-delay section (green)
+      fill(0, 180, 0);
+      rect(barX + preDelayWidth + pulseWidth, yPos, postDelayWidth, barHeight);
+      
+      // Labels
+      yPos += barHeight + 5;
+      fill(220);
+      textAlign(LEFT, TOP);
+      textSize(10);
+      text("Pre: " + cameraPreDelay + "ms", barX, yPos);
+      text("Pulse: " + cameraPulseWidth + "ms", barX + preDelayWidth + 5, yPos);
+      text("Post: " + cameraPostDelay + "ms", barX + preDelayWidth + pulseWidth + 5, yPos);
+      
+      yPos += 15;
+    }
+  }
+  
+  yPos += SECTION_SPACING;
+  
+  // SECTION: Current LED Information
+  drawSectionHeader("CURRENT LED", yPos);
+  yPos += 25;
+  
+  drawField("X:", currentLedX == -1 ? "None" : String.valueOf(currentLedX), yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Y:", currentLedY == -1 ? "None" : String.valueOf(currentLedY), yPos);
+  yPos += FIELD_SPACING + SECTION_SPACING;
+  
+  // SECTION: Hardware Status (only in hardware mode)
+  if (!simulationMode) {
+    drawSectionHeader("HARDWARE", yPos);
+    yPos += 25;
+    
+    drawField("Status:", hardwareConnected ? "CONNECTED" : "DISCONNECTED", yPos);
+    yPos += FIELD_SPACING;
+    
+    if (hardwareConnected && arduinoPort != null) {
+      // Display the currently selected port name
+      int portIndex = (int)cp5.get(ScrollableList.class, "serialPortsList").getValue();
+      String portName = "Unknown";
+      if (portIndex >= 0 && portIndex < availablePorts.length) {
+        portName = availablePorts[portIndex];
+        // Truncate if too long
+        if (portName.length() > 15) {
+          portName = portName.substring(0, 12) + "...";
+        }
+      }
+      drawField("Port:", portName, yPos);
+      yPos += FIELD_SPACING;
+    }
+    
+    yPos += SECTION_SPACING;
+  }
+  
+  // SECTION: Sequence Progress (only if sequence exists)
+  if (illuminationSequence != null && illuminationSequence.size() > 0) {
+    drawSectionHeader("SEQUENCE", yPos);
+    yPos += 25;
+    
+    // Progress text
+    drawField("Progress:", sequenceIndex + " / " + illuminationSequence.size(), yPos);
+    yPos += FIELD_SPACING;
+    
+    // Progress bar
+    text("", 20, yPos); // Empty label
+    float progress = (float)sequenceIndex / illuminationSequence.size();
+    int barWidth = 180;
+    int barHeight = 12;
+    int barX = 20;
+    int barY = yPos;
+    
+    // Background
+    stroke(100);
+    noFill();
+    rect(barX, barY, barWidth, barHeight);
+    
+    // Progress fill
+    fill(0, 255, 0);
+    noStroke();
+    rect(barX, barY, barWidth * progress, barHeight);
+    
+    yPos += 20; // Extra space after the bar
+  }
+}
+
+// Helper method to draw a section header
+void drawSectionHeader(String title, int yPos) {
+  fill(180);
+  textAlign(LEFT, TOP);
+  textSize(14);
+  text(title, 20, yPos);
+  
+  // Draw a subtle separator line
+  stroke(80);
+  line(85, yPos + 7, INFO_PANEL_WIDTH - 20, yPos + 7);
+}
+
+// Helper method to draw a field with label and value
+void drawField(String label, String value, int yPos) {
+  drawField(label, value, yPos, color(255));
+}
+
+// Helper method to draw a field with label and value and custom value color
+void drawField(String label, String value, int yPos, color valueColor) {
+  fill(200);
+  textAlign(LEFT, TOP);
+  textSize(13);
+  text(label, 20, yPos);
+  
+  fill(valueColor);
+  // Use ellipsis for long values to prevent spillover
+  if (value.length() > 13 && !value.contains("CONCENTRIC")) {
+    value = value.substring(0, 10) + "...";
+  }
+  text(value, 100, yPos);
+}
+
+void drawLEDMatrix() {
+  // Calculate grid position
+  int availableWidth = width - INFO_PANEL_WIDTH - 40; // Available width after info panel with padding
+  int availableHeight = height - GRID_PADDING_TOP - 40; // Available height with top and bottom padding
+  
+  // Calculate the maximum cell size that will fit in the available space
+  int maxCellWidth = availableWidth / MATRIX_WIDTH;
+  int maxCellHeight = availableHeight / MATRIX_HEIGHT;
+  int dynamicCellSize = min(maxCellWidth, maxCellHeight, CELL_SIZE);
+  
+  // Calculate the matrix dimensions with the dynamic cell size
+  int matrixWidth = MATRIX_WIDTH * dynamicCellSize;
+  int matrixHeight = MATRIX_HEIGHT * dynamicCellSize;
+  
+  // Center the matrix in the available space
+  int gridX = INFO_PANEL_WIDTH + (availableWidth - matrixWidth) / 2 + 20; // Add padding
+  int gridY = GRID_PADDING_TOP;
+  
+  // Draw matrix area background
+  fill(20);
+  noStroke();
+  rect(INFO_PANEL_WIDTH, 0, width - INFO_PANEL_WIDTH, height);
+  
+  // Draw matrix title
+  fill(200);
+  textAlign(CENTER, TOP);
+  textSize(14);
+  text("64x64 RGB LED MATRIX", gridX + matrixWidth / 2, 20);
+  
+  // Draw grid background
+  noStroke();
+  fill(30);
+  rect(gridX - 1, gridY - 1, matrixWidth + 2, matrixHeight + 2);
+  
+  // Draw each LED cell
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      // Determine cell color
+      color cellColor = OFF_COLOR;
+      
+      // In simulation mode or when no special LED is active
+      if ((currentLedX != x || currentLedY != y) || !running || paused) {
+        // Check if this LED is part of the pattern
+        if (ledPattern[y][x]) {
+          // Use a dimmer color to indicate pattern but not active
+          cellColor = PATTERN_COLOR;
+        }
+      } else if (currentLedX == x && currentLedY == y) {
+        // This is the currently active LED
+        // Determine color based on current color setting
+        if ((currentColor & COLOR_RED) != 0 && (currentColor & COLOR_GREEN) != 0 && (currentColor & COLOR_BLUE) != 0) {
+          cellColor = WHITE_COLOR;
+        } else if ((currentColor & COLOR_RED) != 0 && (currentColor & COLOR_GREEN) != 0) {
+          cellColor = YELLOW_COLOR;
+        } else if ((currentColor & COLOR_RED) != 0 && (currentColor & COLOR_BLUE) != 0) {
+          cellColor = MAGENTA_COLOR;
+        } else if ((currentColor & COLOR_GREEN) != 0 && (currentColor & COLOR_BLUE) != 0) {
+          cellColor = CYAN_COLOR;
+        } else if ((currentColor & COLOR_RED) != 0) {
+          cellColor = RED_COLOR;
+        } else if ((currentColor & COLOR_GREEN) != 0) {
+          cellColor = GREEN_COLOR;
+        } else if ((currentColor & COLOR_BLUE) != 0) {
+          cellColor = BLUE_COLOR;
+        }
+      }
+      
+      // Draw the cell
+      fill(cellColor);
+      int cellX = gridX + x * dynamicCellSize;
+      int cellY = gridY + y * dynamicCellSize;
+      rect(cellX, cellY, dynamicCellSize, dynamicCellSize);
+    }
+  }
+  
+  // Draw grid lines if enabled
+  if (showGrid) {
+    stroke(60);
+    // Draw vertical lines
+    for (int x = 0; x <= MATRIX_WIDTH; x += 8) {
+      line(gridX + x * dynamicCellSize, gridY, gridX + x * dynamicCellSize, gridY + matrixHeight);
+    }
+    // Draw horizontal lines
+    for (int y = 0; y <= MATRIX_HEIGHT; y += 8) {
+      line(gridX, gridY + y * dynamicCellSize, gridX + matrixWidth, gridY + y * dynamicCellSize);
+    }
+  }
+  
+  // Draw camera trigger indicator in the matrix corner when enabled
+  if (cameraEnabled) {
+    int indicatorSize = 12;
+    int indicatorX = gridX + matrixWidth - indicatorSize - 8;
+    int indicatorY = gridY + 8;
+    
+    // Draw camera indicator background
+    noStroke();
+    fill(40);
+    rect(indicatorX, indicatorY, indicatorSize, indicatorSize);
+    
+    // Draw camera status indicator
+    if (cameraTriggerActive) {
+      // Show active trigger with red circle
+      fill(255, 0, 0);
+      ellipse(indicatorX + indicatorSize/2, indicatorY + indicatorSize/2, indicatorSize-2, indicatorSize-2);
+    } else if (cameraErrorStatus != null && !cameraErrorStatus.isEmpty()) {
+      // Show error with yellow triangle
+      fill(255, 255, 0);
+      triangle(
+        indicatorX + indicatorSize/2, indicatorY + 1,
+        indicatorX + 1, indicatorY + indicatorSize - 1,
+        indicatorX + indicatorSize - 1, indicatorY + indicatorSize - 1
+      );
+    } else if (cameraLastTriggerTime > 0 && (millis() - cameraLastTriggerTime < 1000)) {
+      // Show recent trigger with fading green circle
+      float alpha = map(millis() - cameraLastTriggerTime, 0, 1000, 255, 0);
+      fill(0, 255, 0, alpha);
+      ellipse(indicatorX + indicatorSize/2, indicatorY + indicatorSize/2, indicatorSize-2, indicatorSize-2);
+    }
+  }
+  
+  // Draw coordinates
+  fill(150);
+  textSize(10);
+  textAlign(CENTER, TOP);
+  
+  // Draw x-axis coordinates (only every 8 for clarity)
+  for (int x = 0; x < MATRIX_WIDTH; x += 8) {
+    text(str(x), gridX + x * dynamicCellSize + dynamicCellSize/2, gridY + matrixHeight + 5);
+  }
+  
+  // Draw y-axis coordinates (only every 8 for clarity)
+  textAlign(RIGHT, CENTER);
+  for (int y = 0; y < MATRIX_HEIGHT; y += 8) {
+    text(str(y), gridX - 5, gridY + y * dynamicCellSize + dynamicCellSize/2);
+  }
+}
+
+void setupUI() {
+  cp5 = new ControlP5(this);
+  
+  // Constants for UI layout
+  final int GROUP_WIDTH = INFO_PANEL_WIDTH - 20;  // Make group width match info panel width
+  final int CONTROL_MARGIN = 10;
+  final int BAR_HEIGHT = 20;
+  
+  // Calculate section heights more precisely
+  final int RADIO_SECTION_HEIGHT = 140;  // Title + 4 radio buttons with spacing
+  final int SLIDERS_SECTION_HEIGHT = 140; // Title + parameter groups + spacing slider
+  final int MASK_SECTION_HEIGHT = 70;    // Title + toggle + slider
+  
+  // Total heights for each group based on their content with enough padding
+  final int PATTERN_GROUP_HEIGHT = RADIO_SECTION_HEIGHT + SLIDERS_SECTION_HEIGHT + MASK_SECTION_HEIGHT + 25; // +25px padding
+  final int CONTROL_GROUP_HEIGHT = 250;  // Buttons section + settings section + extra padding
+  final int HARDWARE_GROUP_HEIGHT = 340; // Mode section + connection section + extra padding
+  
+  // Calculate spacing between groups in accordion mode
+  final int GROUP_SPACING = BAR_HEIGHT + 5;
+  
+  // Create Pattern Settings Group
+  Group patternGroup = cp5.addGroup("Pattern Settings")
+    .setPosition(CONTROL_MARGIN, 40)
+    .setBackgroundColor(color(0, 64))
+    .setWidth(GROUP_WIDTH)
+    .setBackgroundHeight(PATTERN_GROUP_HEIGHT)
+    .setBarHeight(BAR_HEIGHT);
+    
+  // Create Controls Group
+  Group controlGroup = cp5.addGroup("Controls")
+    .setPosition(CONTROL_MARGIN, 40 + PATTERN_GROUP_HEIGHT + GROUP_SPACING)
+    .setBackgroundColor(color(0, 64))
+    .setWidth(GROUP_WIDTH)
+    .setBackgroundHeight(CONTROL_GROUP_HEIGHT)
+    .setBarHeight(BAR_HEIGHT);
+    
+  // Create Hardware Group
+  Group hardwareGroup = cp5.addGroup("Hardware")
+    .setPosition(CONTROL_MARGIN, 40 + PATTERN_GROUP_HEIGHT + CONTROL_GROUP_HEIGHT + GROUP_SPACING*2)
+    .setBackgroundColor(color(0, 64))
+    .setWidth(GROUP_WIDTH)
+    .setBackgroundHeight(HARDWARE_GROUP_HEIGHT)
+    .setBarHeight(BAR_HEIGHT);
+    
+  // Constants for spacing calculations
+  final int TITLE_HEIGHT = 20; // Reduced height
+  final int RADIO_BUTTON_HEIGHT = 20;
+  final int RADIO_BUTTON_SPACING = 12; // Reduced spacing between radio buttons
+  final int PATTERN_SECTION_SPACING = 20; // Reduced section spacing to save space
+  final int NUM_RADIO_BUTTONS = 4;
+  
+  // Add a title for Pattern group
+  cp5.addTextlabel("patternTitle")
+    .setText("Select Pattern Type:")
+    .setPosition(CONTROL_MARGIN, 10)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(patternGroup);
+    
+  // Starting position for radio buttons
+  int radioY = 10 + TITLE_HEIGHT;
+    
+  // Add controls to pattern group with better spacing
+  cp5.addRadioButton("patternTypeRadio")
+    .setPosition(CONTROL_MARGIN, radioY)
+    .setSize(20, RADIO_BUTTON_HEIGHT)
+    .setColorForeground(color(120))
+    .setColorActive(color(0, 255, 0))
+    .setColorLabel(color(255))
+    .setItemsPerRow(1)
+    .setSpacingRow(RADIO_BUTTON_SPACING)
+    .addItem("Concentric Rings", PATTERN_CONCENTRIC_RINGS)
+    .addItem("Center Only", PATTERN_CENTER_ONLY)
+    .addItem("Spiral", PATTERN_SPIRAL)
+    .addItem("Grid", PATTERN_GRID)
+    .activate(patternType)  // Use default value from variable
+    .moveTo(patternGroup);
+    
+  // Calculate exact position for slider section based on radio button heights
+  int radioSectionHeight = RADIO_BUTTON_HEIGHT * NUM_RADIO_BUTTONS + 
+                          RADIO_BUTTON_SPACING * (NUM_RADIO_BUTTONS - 1);
+  int sliderSectionY = radioY + radioSectionHeight + PATTERN_SECTION_SPACING;
+  
+  // Add a title for the sliders with calculated positioning
+  cp5.addTextlabel("slidersTitle")
+    .setText("Adjust Pattern Parameters:")
+    .setPosition(CONTROL_MARGIN, sliderSectionY)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(patternGroup);
+  
+  // Calculate slider dimensions to leave room for labels
+  final int SLIDER_WIDTH = 140; // Significantly narrower to leave room for labels
+  final int LABEL_OFFSET = 8;   // Space between slider and its label
+  final int SLIDER_SPACING = 22; // Space between sliders (reduced further for better fit)
+  final int GROUP_HEIGHT = 100;  // Height for most parameter groups
+  final int GRID_GROUP_HEIGHT = 150; // Extra height for grid group to accommodate more sliders
+  int sliderY = sliderSectionY + 25; // Start position for sliders (moved slightly higher)
+  
+  // Create pattern-specific parameter groups
+  // 1. Concentric Rings Pattern Group
+  concentricRingsGroup = cp5.addGroup("concentricRingsParams")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add sliders for concentric rings pattern
+  int paramY = 10;
+  
+  Slider innerSlider = cp5.addSlider("innerRingRadius")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(2, 32)
+    .setValue(16)
+    .setLabel("Inner Ring Radius")
+    .moveTo(concentricRingsGroup);
+  innerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider middleSlider = cp5.addSlider("middleRingRadius")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(8, 45)
+    .setValue(24)
+    .setLabel("Middle Ring Radius")
+    .moveTo(concentricRingsGroup);
+  middleSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider outerSlider = cp5.addSlider("outerRingRadius")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(12, 50)
+    .setValue(31)
+    .setLabel("Outer Ring Radius")
+    .moveTo(concentricRingsGroup);
+  outerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // 2. Spiral Pattern Group
+  spiralGroup = cp5.addGroup("spiralParams")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add sliders for spiral pattern
+  paramY = 10;
+  
+  Slider spiralMaxRadiusSlider = cp5.addSlider("spiralMaxRadius")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(10, 50)
+    .setValue(30)
+    .setLabel("Max Radius")
+    .moveTo(spiralGroup);
+  spiralMaxRadiusSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider spiralTurnsSlider = cp5.addSlider("spiralTurns")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(1, 5)
+    .setValue(3)
+    .setLabel("Number of Turns")
+    .moveTo(spiralGroup);
+  spiralTurnsSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // 3. Grid Pattern Group - needs more height for additional sliders
+  gridGroup = cp5.addGroup("gridParams")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GRID_GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add sliders for grid pattern
+  paramY = 10;
+  
+  Slider gridSpacingSlider = cp5.addSlider("gridSpacing")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(0, 12)  // Start from 0 to allow for every LED to be lit
+    .setValue(gridSpacing)  // Use default value from variable
+    .setLabel("Grid Spacing")
+    .moveTo(gridGroup);
+  gridSpacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider gridPointSizeSlider = cp5.addSlider("gridPointSize")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(1, 3)  // 1 = single LED, 2 = 2x2, 3 = 3x3
+    .setValue(1)
+    .setLabel("Grid Point Size")
+    .moveTo(gridGroup);
+  gridPointSizeSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  // Add X and Y offset sliders for fine grid positioning
+  Slider gridOffsetXSlider = cp5.addSlider("gridOffsetX")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(0, 4)  // Small offset range for fine adjustments
+    .setValue(0)
+    .setLabel("X Offset")
+    .moveTo(gridGroup);
+  gridOffsetXSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider gridOffsetYSlider = cp5.addSlider("gridOffsetY")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(0, 4)  // Small offset range for fine adjustments
+    .setValue(0)
+    .setLabel("Y Offset")
+    .moveTo(gridGroup);
+  gridOffsetYSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // 4. Center Only Pattern Group
+  centerGroup = cp5.addGroup("centerParams")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add label for center only (no parameters)
+  cp5.addTextlabel("centerLabel")
+    .setText("Center LED only - no additional parameters")
+    .setPosition(10, 10) // Moved up slightly
+    .setColorValue(color(200))
+    .setFont(createFont("Arial", 12))
+    .moveTo(centerGroup);
+  
+  // Add LED spacing slider common to all patterns
+  // Place it directly after the parameter groups with minimal space
+  sliderY += GROUP_HEIGHT + 5; // Reduced spacing
+  
+  // Create physical spacing slider with 0.1mm increments
+  Slider spacingSlider = cp5.addSlider("targetLedSpacingMM")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(1.0, 6.0)  // Allow spacing from 1mm to 6mm
+    .setValue(targetLedSpacingMM)
+    .setDecimalPrecision(1)  // Show one decimal place
+    .setNumberOfTickMarks(51)  // 51 tick marks for 1.0 to 6.0 in 0.1 increments
+    .setLabel("Physical Spacing (mm)")
+    .snapToTickMarks(true)  // Snap to 0.1mm increments
+    .moveTo(patternGroup);
+  spacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  sliderY += SLIDER_SPACING + 5; // Reduced spacing before circle mask section
+  
+  // Initially show only the parameter panel for the default pattern
+  concentricRingsGroup.hide();
+  spiralGroup.hide();
+  centerGroup.hide();
+  
+  // Show the grid group since it's the default pattern
+  gridGroup.show();
+  
+  // Add Circle Mask section title
+  cp5.addTextlabel("maskTitle")
+    .setText("Circle Mask:")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(patternGroup);
+    
+  // Add Circle Mask Toggle - positioned on the same line as the title
+  cp5.addToggle("circleMaskToggle")
+    .setPosition(CONTROL_MARGIN + 100, sliderY)
+    .setSize(50, 15)
+    .setLabel("")
+    .setValue(circleMaskMode)  // Use default value from variable
+    .moveTo(patternGroup);
+  
+  sliderY += 25; // Reduced space after the title and toggle
+    
+  // Circle Mask Radius slider
+  Slider circleMaskSlider = cp5.addSlider("circleMaskRadius")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(5, 32)
+    .setValue(circleMaskRadius)  // Use default value from variable
+    .setLabel("Mask Radius")
+    .moveTo(patternGroup);
+  // Configure label after adding to group
+  circleMaskSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // Check if the panel height will fit the controls
+  // Calculate actual height of all elements
+  int actualPatternHeight = sliderY + 15 + 20; // Current Y + slider height + bottom padding
+  
+  // Always update pattern group height to ensure enough room with a minimum buffer
+  // Add extra padding (30px) to make sure everything fits
+  int adjustedPatternHeight = Math.max(actualPatternHeight + 30, PATTERN_GROUP_HEIGHT);
+  patternGroup.setBackgroundHeight(adjustedPatternHeight);
+  println("Set pattern group height to: " + adjustedPatternHeight);
+    
+  // Add control buttons with more consistent spacing
+  int buttonWidth = (GROUP_WIDTH - CONTROL_MARGIN*3) / 2;
+  
+  // Calculate dynamic positioning for Controls group
+  final int BUTTON_HEIGHT = 30;
+  final int BUTTON_SPACING = 10;
+  
+  // Add a title for Controls group
+  cp5.addTextlabel("controlsTitle")
+    .setText("Sequence Controls:")
+    .setPosition(CONTROL_MARGIN, 10)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(controlGroup);
+  
+  // Button positioning
+  int buttonY = 40; // Start after title
+  
+  // First row of buttons - larger and more spaced
+  cp5.addButton("startButton")
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
+    .setLabel("Start")
+    .setColorBackground(color(0, 120, 0))
+    .moveTo(controlGroup);
+    
+  cp5.addButton("pauseButton")
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
+    .setLabel("Pause")
+    .setColorBackground(color(120, 120, 0))
+    .moveTo(controlGroup);
+    
+  // Second row of buttons
+  buttonY += BUTTON_HEIGHT + BUTTON_SPACING;
+  
+  cp5.addButton("stopButton")
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
+    .setLabel("Stop")
+    .setColorBackground(color(120, 0, 0))
+    .moveTo(controlGroup);
+    
+  cp5.addButton("regenerateButton")
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, buttonY)
+    .setSize(buttonWidth, BUTTON_HEIGHT)
+    .setLabel("Regenerate")
+    .moveTo(controlGroup);
+  
+  // Settings title - position after the buttons
+  buttonY += BUTTON_HEIGHT + BUTTON_SPACING + 10;
+  
+  cp5.addTextlabel("settingsTitle")
+    .setText("Settings:")
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(controlGroup);
+  
+  // Toggles for settings - position after settings title
+  buttonY += 30;
+  final int TOGGLE_HEIGHT = 25;
+    
+  cp5.addToggle("idleToggle")
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setSize(buttonWidth, TOGGLE_HEIGHT)
+    .setLabel("Idle Mode")
+    .setValue(false)
+    .moveTo(controlGroup);
+    
+  cp5.addToggle("gridToggle")
+    .setPosition(CONTROL_MARGIN*2 + buttonWidth, buttonY)
+    .setSize(buttonWidth, TOGGLE_HEIGHT)
+    .setLabel("Show Grid")
+    .setValue(true)
+    .moveTo(controlGroup);
+  
+  // Interval slider - position after toggles
+  buttonY += TOGGLE_HEIGHT + BUTTON_SPACING + 5;
+    
+  Slider intervalSlider = cp5.addSlider("updateInterval")
+    .setPosition(CONTROL_MARGIN, buttonY)
+    .setSize(SLIDER_WIDTH, 20)
+    .setRange(100, 2000)
+    .setValue(500)
+    .setLabel("Update Interval (ms)")
+    .moveTo(controlGroup);
+  // Configure label after adding to group
+  intervalSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // Check if the panel height will fit the controls
+  // Calculate actual height of all elements
+  int actualControlHeight = buttonY + 20 + 20; // Current Y + slider height + bottom padding
+  
+  // Always update control group height to ensure enough room with a minimum buffer
+  int adjustedControlHeight = Math.max(actualControlHeight + 20, CONTROL_GROUP_HEIGHT);
+  controlGroup.setBackgroundHeight(adjustedControlHeight);
+  println("Set control group height to: " + adjustedControlHeight);
+  
+  // Circle mask radius slider was moved to Pattern Settings
+    
+  // Add hardware controls with dynamic positioning
+  int hardwareY = 10; // Starting position
+  final int HARDWARE_SECTION_SPACING = 20; // Spacing specific to hardware sections
+  
+  // Add a title for Hardware group
+  cp5.addTextlabel("hardwareTitle")
+    .setText("Hardware Configuration:")
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(hardwareGroup);
+  
+  // Mode selection toggle
+  hardwareY += 30;
+  cp5.addToggle("simulationToggle")
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
+    .setLabel("Simulation Mode")
+    .setValue(true)
+    .moveTo(hardwareGroup);
+    
+  // Connection section
+  hardwareY += BUTTON_HEIGHT + HARDWARE_SECTION_SPACING;
+  cp5.addTextlabel("connectionTitle")
+    .setText("Arduino Connection:")
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setColorValue(color(220))
+    .setFont(createFont("Arial", 14))
+    .moveTo(hardwareGroup);
+    
+  // Serial port selection
+  hardwareY += 30;
+  int LIST_HEIGHT = 120;
+  cp5.addScrollableList("serialPortsList")
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, LIST_HEIGHT)
+    .setBarHeight(25)
+    .setItemHeight(25)
+    .setLabel("Serial Port")
+    .moveTo(hardwareGroup);
+    
+  // Connection button
+  hardwareY += LIST_HEIGHT + BUTTON_SPACING;
+  cp5.addButton("connectButton")
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
+    .setLabel("Connect to Hardware")
+    .setColorBackground(color(0, 0, 120))
+    .moveTo(hardwareGroup);
+    
+  // Upload button
+  hardwareY += BUTTON_HEIGHT + BUTTON_SPACING;
+  cp5.addButton("uploadPatternButton")
+    .setPosition(CONTROL_MARGIN, hardwareY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
+    .setLabel("Upload Pattern to Hardware")
+    .setColorBackground(color(0, 120, 120))
+    .moveTo(hardwareGroup);
+    
+  // Check if the panel height will fit the controls
+  // Calculate actual height of all elements
+  int actualHardwareHeight = hardwareY + BUTTON_HEIGHT + 20; // Current Y + button height + bottom padding
+  
+  // Always update hardware group height to ensure enough room with a minimum buffer
+  int adjustedHardwareHeight = Math.max(actualHardwareHeight + 20, HARDWARE_GROUP_HEIGHT);
+  hardwareGroup.setBackgroundHeight(adjustedHardwareHeight);
+  println("Set hardware group height to: " + adjustedHardwareHeight);
+    
+  // Create Camera Control Group
+  Group cameraControlGroup = cp5.addGroup("Camera Control")
+    .setPosition(CONTROL_MARGIN, 40 + PATTERN_GROUP_HEIGHT + CONTROL_GROUP_HEIGHT + HARDWARE_GROUP_HEIGHT + GROUP_SPACING*3)
+    .setBackgroundColor(color(0, 64))
+    .setWidth(GROUP_WIDTH)
+    .setBackgroundHeight(200)  // Enough height for camera controls
+    .setBarHeight(BAR_HEIGHT);
+    
+  // Add camera control components
+  int cameraY = 10;
+  
+  // Camera enable toggle
+  cp5.addToggle("cameraEnabled")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, TOGGLE_HEIGHT)
+    .setLabel("Enable Camera Trigger")
+    .setValue(cameraEnabled)
+    .moveTo(cameraControlGroup);
+  
+  cameraY += TOGGLE_HEIGHT + BUTTON_SPACING + 5;
+  
+  // Pre-delay slider (for camera auto-exposure)
+  Slider preDelaySlider = cp5.addSlider("cameraPreDelay")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(0, 2000)
+    .setValue(cameraPreDelay)
+    .setLabel("Pre-Trigger Delay (ms)")
+    .moveTo(cameraControlGroup);
+  preDelaySlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  cameraY += SLIDER_SPACING;
+  
+  // Pulse width slider
+  Slider pulseWidthSlider = cp5.addSlider("cameraPulseWidth")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(10, 500)
+    .setValue(cameraPulseWidth)
+    .setLabel("Trigger Pulse (ms)")
+    .moveTo(cameraControlGroup);
+  pulseWidthSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  cameraY += SLIDER_SPACING;
+  
+  // Post-delay slider
+  Slider postDelaySlider = cp5.addSlider("cameraPostDelay")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(100, 5000)
+    .setValue(cameraPostDelay)
+    .setLabel("Post-Trigger Delay (ms)")
+    .moveTo(cameraControlGroup);
+  postDelaySlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  cameraY += SLIDER_SPACING + 10;
+  
+  // Manual trigger test button
+  cp5.addButton("testCameraButton")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
+    .setLabel("Test Camera Trigger")
+    .setColorBackground(color(0, 120, 100))
+    .moveTo(cameraControlGroup);
+  
+  // Create accordion
+  accordion = cp5.addAccordion("acc")
+    .setPosition(CONTROL_MARGIN, 40)
+    .setWidth(GROUP_WIDTH)
+    .addItem(patternGroup)
+    .addItem(controlGroup)
+    .addItem(hardwareGroup)
+    .addItem(cameraControlGroup);
+  
+  // Open just the first panel by default, to avoid overlap
+  accordion.open(0);
+  
+  // Change accordion mode to not allow multiple open panels - this is essential to prevent UI overlaps
+  accordion.setCollapseMode(Accordion.SINGLE);
+  
+  // Calculate the maximum height the accordion can take
+  int maxAccordionHeight = height - 60; // Allow some margin from the window height
+  
+  // Adjust group heights to ensure they fit within the window
+  int maxGroupHeight = maxAccordionHeight - (BAR_HEIGHT * 3) - 20; // Account for accordion headers
+  
+  // Set maximum height for each group to prevent them from exceeding window bounds
+  patternGroup.setBackgroundHeight(min(PATTERN_GROUP_HEIGHT, maxGroupHeight));
+  controlGroup.setBackgroundHeight(min(CONTROL_GROUP_HEIGHT, maxGroupHeight));
+  hardwareGroup.setBackgroundHeight(min(HARDWARE_GROUP_HEIGHT, maxGroupHeight));
+}
+
+// Event handlers for UI components
+public void patternTypeRadio(int value) {
+  patternType = value;
+  
+  // Show/hide the appropriate parameter groups based on the selected pattern
+  // Hide all groups first
+  concentricRingsGroup.hide();
+  spiralGroup.hide();
+  gridGroup.hide();
+  centerGroup.hide();
+  
+  // Show the appropriate group for the selected pattern
+  switch (patternType) {
+    case PATTERN_CONCENTRIC_RINGS:
+      concentricRingsGroup.show();
+      break;
+    case PATTERN_SPIRAL:
+      spiralGroup.show();
+      break;
+    case PATTERN_GRID:
+      gridGroup.show();
+      break;
+    case PATTERN_CENTER_ONLY:
+      centerGroup.show();
+      break;
+  }
+  
+  // Generate the new pattern
+  regeneratePattern();
+  generateIlluminationSequence();
+  
+  // If hardware connected, send pattern type
+  if (!simulationMode && hardwareConnected) {
+    sendPatternTypeToHardware();
+  }
+  
+  println("Pattern changed to: " + patternType);
+}
+
+public void simulationToggle(boolean value) {
+  simulationMode = value;
+  
+  // If switching to hardware mode, disconnect if connected
+  if (simulationMode && hardwareConnected) {
+    disconnectHardware();
+  }
+  
+  println("Switched to " + (simulationMode ? "Simulation" : "Hardware") + " mode");
+}
+
+public void serialPortsList(int index) {
+  // Select port from the list
+  if (index >= 0 && index < availablePorts.length) {
+    println("Selected port: " + availablePorts[index]);
+  }
+}
+
+public void connectButton() {
+  if (simulationMode) {
+    println("Cannot connect in simulation mode. Switch to hardware mode first.");
+    return;
+  }
+  
+  // Get selected port
+  int portIndex = (int)cp5.get(ScrollableList.class, "serialPortsList").getValue();
+  if (portIndex < 0 || portIndex >= availablePorts.length) {
+    println("Please select a valid serial port");
+    return;
+  }
+  
+  // Try to connect
+  try {
+    if (hardwareConnected) {
+      disconnectHardware();
+    }
+    
+    // Connect to the selected port
+    arduinoPort = new Serial(this, availablePorts[portIndex], 9600);
+    arduinoPort.bufferUntil('\n');
+    hardwareConnected = true;
+    
+    println("Connected to hardware on port: " + availablePorts[portIndex]);
+  } catch (Exception e) {
+    println("Error connecting to hardware: " + e.getMessage());
+    hardwareConnected = false;
+  }
+}
+
+public void uploadPatternButton() {
+  if (!hardwareConnected) {
+    println("Cannot upload pattern: Hardware not connected");
+    return;
+  }
+  
+  // Send pattern parameters
+  sendPatternTypeToHardware();
+  sendPatternParametersToHardware();
+  
+  println("Pattern uploaded to hardware");
+}
+
+public void startButton() {
+  running = true;
+  paused = false;
+  
+  if (sequenceIndex >= illuminationSequence.size()) {
+    sequenceIndex = 0;
+  }
+  
+  // If in hardware mode, send command to start sequence
+  if (!simulationMode && hardwareConnected) {
+    arduinoPort.write(CMD_START_SEQUENCE);
+  }
+}
+
+public void pauseButton() {
+  paused = !paused;
+  
+  // No direct pause command for hardware - we'll manage it in software
+}
+
+public void stopButton() {
+  running = false;
+  paused = false;
+  sequenceIndex = 0;
+  currentLedX = -1;
+  currentLedY = -1;
+  
+  // If in hardware mode, send command to stop sequence
+  if (!simulationMode && hardwareConnected) {
+    arduinoPort.write(CMD_STOP_SEQUENCE);
+  }
+}
+
+public void regenerateButton() {
+  regeneratePattern();
+  generateIlluminationSequence();
+  sequenceIndex = 0;
+  
+  // If in hardware mode, send updated pattern
+  if (!simulationMode && hardwareConnected) {
+    sendPatternParametersToHardware();
+  }
+}
+
+public void idleToggle(boolean value) {
+  idleMode = value;
+  
+  // If in hardware mode, send idle command
+  if (!simulationMode && hardwareConnected) {
+    if (idleMode) {
+      arduinoPort.write(CMD_ENTER_IDLE);
+    } else {
+      arduinoPort.write(CMD_EXIT_IDLE);
+    }
+  }
+  
+  // In simulation mode, handle locally
+  if (simulationMode) {
+    if (idleMode) {
+      running = false;
+      paused = false;
+      currentLedX = -1;
+      currentLedY = -1;
+      lastBlinkTime = millis();
+    }
+  }
+}
+
+public void gridToggle(boolean value) {
+  showGrid = value;
+}
+
+public void circleMaskToggle(boolean value) {
+  circleMaskMode = value;
+  // Regenerate pattern when toggling circle mask mode
+  regeneratePattern();
+  generateIlluminationSequence();
+}
+
+public void controlEvent(ControlEvent event) {
+  // Listen for parameter changes
+  if (event.isController()) {
+    String name = event.getController().getName();
+    boolean isPatternParameter = 
+      // Concentric rings parameters
+      name.equals("innerRingRadius") || 
+      name.equals("middleRingRadius") || 
+      name.equals("outerRingRadius") ||
+      // Spiral parameters
+      name.equals("spiralMaxRadius") ||
+      name.equals("spiralTurns") ||
+      // Grid parameters
+      name.equals("gridSpacing") ||
+      name.equals("gridPointSize") ||
+      name.equals("gridOffsetX") ||
+      name.equals("gridOffsetY") ||
+      // Common parameters
+      name.equals("targetLedSpacingMM") ||
+      name.equals("circleMaskRadius");
+    
+    if (isPatternParameter) {
+      // Debug output
+      println("Parameter changed: " + name + " = " + event.getController().getValue());
+      
+      // Recalculate LED skip
+      ledSkip = round(targetLedSpacingMM / ledPitchMM);
+      if (ledSkip < 1) ledSkip = 1;
+      
+      // Regenerate pattern with new parameters
+      regeneratePattern();
+      generateIlluminationSequence();
+      
+      // If in hardware mode and connected, send updated parameters
+      if (!simulationMode && hardwareConnected) {
+        sendPatternParametersToHardware();
+      }
+    }
+  }
+}
+
+void regeneratePattern() {
+  // Clear the pattern
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      ledPattern[y][x] = false;
+    }
+  }
+  
+  // Get center coordinates
+  int centerX = MATRIX_WIDTH / 2;
+  int centerY = MATRIX_HEIGHT / 2;
+  
+  // Set the center LED for center-only pattern
+  ledPattern[centerY][centerX] = true;
+  
+  // Generate pattern based on type
+  switch (patternType) {
+    case PATTERN_CONCENTRIC_RINGS:
+      generateConcentricRings();
+      break;
+    case PATTERN_CENTER_ONLY:
+      // Center LED is already set
+      break;
+    case PATTERN_SPIRAL:
+      generateSpiral();
+      break;
+    case PATTERN_GRID:
+      generateGrid();
+      break;
+  }
+  
+  // Apply circle mask if enabled
+  if (circleMaskMode) {
+    applyCircleMask(centerX, centerY);
+  }
+}
+
+// Apply a circular mask to the pattern, only keeping LEDs within the specified radius
+void applyCircleMask(int centerX, int centerY) {
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      // Calculate distance from center
+      float dx = x - centerX;
+      float dy = y - centerY;
+      float distance = sqrt(dx*dx + dy*dy);
+      
+      // Disable LEDs outside the mask radius
+      if (distance > circleMaskRadius) {
+        ledPattern[y][x] = false;
+      }
+    }
+  }
+}
+
+void generateConcentricRings() {
+  // Get center coordinates
+  int centerX = MATRIX_WIDTH / 2;
+  int centerY = MATRIX_HEIGHT / 2;
+  
+  // Generate the ring pattern
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      // Skip LEDs based on spacing
+      if ((x + y) % ledSkip != 0) continue;
+      
+      // Calculate distance from center
+      float dx = x - centerX;
+      float dy = y - centerY;
+      float distance = sqrt(dx*dx + dy*dy);
+      
+      // Check if this LED falls on one of our rings
+      if (abs(distance - innerRingRadius) < 1.0 || 
+          abs(distance - middleRingRadius) < 1.0 || 
+          abs(distance - outerRingRadius) < 1.0) {
+        ledPattern[y][x] = true;
+      }
+    }
+  }
+}
+
+void generateSpiral() {
+  // Get center coordinates
+  int centerX = MATRIX_WIDTH / 2;
+  int centerY = MATRIX_HEIGHT / 2;
+  
+  // Use the spiral pattern parameters
+  float maxRadius = spiralMaxRadius;
+  int turns = spiralTurns;
+  
+  // Generate the spiral
+  for (float angle = 0; angle < 2 * PI * turns; angle += 0.1) {
+    float radius = (angle / (2 * PI)) * maxRadius / turns;
+    
+    // Calculate LED coordinates (polar to cartesian conversion)
+    int x = centerX + round(radius * cos(angle));
+    int y = centerY + round(radius * sin(angle));
+    
+    // Validate coordinates and apply spacing
+    if (x >= 0 && x < MATRIX_WIDTH && y >= 0 && y < MATRIX_HEIGHT && 
+        ((x + y) % ledSkip == 0)) {
+      ledPattern[y][x] = true;
+    }
+  }
+}
+
+void generateGrid() {
+  // Get grid parameters
+  int spacing = gridSpacing;
+  int pointSize = gridPointSize;
+  int offsetX = gridOffsetX;
+  int offsetY = gridOffsetY;
+  
+  // Start with a clean pattern (fixes center LED issue)
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      ledPattern[y][x] = false;
+    }
+  }
+  
+  // Special case: when spacing is 0, light every LED (full grid)
+  if (spacing == 0) {
+    for (int y = 0; y < MATRIX_HEIGHT; y++) {
+      for (int x = 0; x < MATRIX_WIDTH; x++) {
+        ledPattern[y][x] = true;
+      }
+    }
+    return;
+  }
+  
+  // Use targetLedSpacingMM to adjust the grid spacing
+  // Calculate the number of LEDs to skip to achieve the desired physical spacing
+  float ledSpacing = targetLedSpacingMM / ledPitchMM;
+  int physicalStep = max(1, round(ledSpacing)) * (spacing + 1);
+  
+  // Ensure we don't exceed matrix bounds with our step size
+  physicalStep = min(physicalStep, MATRIX_WIDTH / 4); // Limit to 1/4 of matrix width
+  
+  // Calculate base offset to center the grid, then add user-defined offset
+  int baseOffsetX = (MATRIX_WIDTH % physicalStep) / 2;
+  int baseOffsetY = (MATRIX_HEIGHT % physicalStep) / 2;
+  int finalOffsetX = (baseOffsetX + offsetX) % physicalStep; // Wrap around if needed
+  int finalOffsetY = (baseOffsetY + offsetY) % physicalStep; // Wrap around if needed
+  
+  // Generate a regular grid with specified spacing and point size
+  for (int gridY = finalOffsetY; gridY < MATRIX_HEIGHT; gridY += physicalStep) {
+    for (int gridX = finalOffsetX; gridX < MATRIX_WIDTH; gridX += physicalStep) {
+      // For each grid point, light up a square of LEDs based on point size
+      for (int y = 0; y < pointSize; y++) {
+        for (int x = 0; x < pointSize; x++) {
+          int ledX = gridX + x;
+          int ledY = gridY + y;
+          
+          // Make sure we're still within the matrix bounds
+          if (ledX >= 0 && ledX < MATRIX_WIDTH && ledY >= 0 && ledY < MATRIX_HEIGHT) {
+            ledPattern[ledY][ledX] = true;
+          }
+        }
+      }
+    }
+  }
+  
+  // Debug output for grid parameters with physical spacing info
+  float actualPhysicalSpacing = physicalStep * ledPitchMM;
+  println("Generated grid with spacing=" + spacing + 
+          ", pointSize=" + pointSize + 
+          ", offsets=(" + offsetX + "," + offsetY + ")" +
+          ", targetSpacing=" + targetLedSpacingMM + "mm" +
+          ", actualSpacing=" + actualPhysicalSpacing + "mm" +
+          ", step=" + physicalStep + " LEDs");
+}
+
+void generateIlluminationSequence() {
+  // Create a list of all LEDs in the pattern
+  illuminationSequence = new ArrayList<int[]>();
+  
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      if (ledPattern[y][x]) {
+        illuminationSequence.add(new int[] {x, y});
+      }
+    }
+  }
+  
+  sequenceIndex = 0;
+  println("Generated illumination sequence with " + illuminationSequence.size() + " steps");
+}
+
+void updateSimulation() {
+  // Only update at specified intervals
+  if (millis() - lastUpdateTime < updateInterval) {
+    return;
+  }
+  lastUpdateTime = millis();
+  
+  // If we've reached the end of the sequence, stop or loop
+  if (sequenceIndex >= illuminationSequence.size()) {
+    // Option 1: Stop the animation
+    // running = false;
+    
+    // Option 2: Loop back to the beginning
+    sequenceIndex = 0;
+    return;
+  }
+  
+  // Get the next LED coordinates
+  int[] coords = illuminationSequence.get(sequenceIndex);
+  currentLedX = coords[0];
+  currentLedY = coords[1];
+  currentColor = COLOR_GREEN;  // Default to green
+  
+  // Increment the sequence index
+  sequenceIndex++;
+}
+
+void handleIdleMode() {
+  // Check if it's time for a heartbeat blink
+  if (millis() - lastBlinkTime >= idleBlinkInterval) {
+    // Blink the center LED
+    int centerX = MATRIX_WIDTH / 2;
+    int centerY = MATRIX_HEIGHT / 2;
+    currentLedX = centerX;
+    currentLedY = centerY;
+    currentColor = COLOR_GREEN;
+    
+    // Reset the timer
+    lastBlinkTime = millis();
+    
+    // Create a timer to turn off the LED after 500ms
+    Thread t = new Thread(new Runnable() {
+      public void run() {
+        try {
+          Thread.sleep(500);
+          currentLedX = -1;
+          currentLedY = -1;
+        } catch (InterruptedException e) {
+          e.printStackTrace();
+        }
+      }
+    });
+    t.start();
+  }
+}
+
+void updatePortList() {
+  // Add serial ports to dropdown
+  ScrollableList portList = cp5.get(ScrollableList.class, "serialPortsList");
+  portList.clear();
+  
+  for (int i = 0; i < availablePorts.length; i++) {
+    portList.addItem(availablePorts[i], i);
+  }
+  
+  if (availablePorts.length > 0) {
+    portList.setValue(0);
+  }
+}
+
+void disconnectHardware() {
+  if (arduinoPort != null) {
+    arduinoPort.stop();
+    arduinoPort = null;
+  }
+  hardwareConnected = false;
+  println("Disconnected from hardware");
+}
+
+void sendPatternTypeToHardware() {
+  if (!hardwareConnected) return;
+  
+  // Send pattern type command: P<type>
+  arduinoPort.write(CMD_SET_PATTERN + "" + patternType + "\n");
+}
+
+public void testCameraButton() {
+  if (!simulationMode && !hardwareConnected) {
+    println("Cannot test camera: Hardware not connected");
+    return;
+  }
+  
+  // Clear any prior error status
+  cameraErrorCode = 0;
+  cameraErrorStatus = "";
+  
+  // In simulation mode, simulate a camera trigger
+  if (simulationMode) {
+    simulateCameraTrigger();
+  } else {
+    // For hardware mode, send command to Arduino
+    String cameraCommand = CMD_SET_CAMERA + 
+                       "T," + // T for test
+                       cameraEnabled + "," +
+                       cameraPulseWidth;
+    
+    arduinoPort.write(cameraCommand + "\n");
+    println("Camera test trigger sent: pulse width = " + cameraPulseWidth + "ms");
+  }
+}
+
+/**
+ * Simulate a camera trigger sequence in simulation mode
+ */
+void simulateCameraTrigger() {
+  // Simulate the camera trigger sequence
+  cameraTriggerActive = true;
+  cameraLastTriggerTime = millis();
+  
+  // Create a thread to simulate the camera timing sequence
+  Thread t = new Thread(new Runnable() {
+    public void run() {
+      try {
+        // Simulate pre-delay
+        Thread.sleep(cameraPreDelay);
+        
+        // Simulate trigger active
+        Thread.sleep(cameraPulseWidth);
+        
+        // End of trigger pulse
+        cameraTriggerActive = false;
+        
+        // Simulate post-delay
+        Thread.sleep(cameraPostDelay);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  });
+  t.start();
+}
+
+/**
+ * Update camera error status based on error code
+ */
+void updateCameraErrorStatus() {
+  // Map error code to human-readable message
+  switch (cameraErrorCode) {
+    case 0:
+      cameraErrorStatus = "";  // No error
+      break;
+    case 1:
+      cameraErrorStatus = "TIMEOUT";
+      break;
+    case 2:
+      cameraErrorStatus = "TRIGGER FAILURE";
+      break;
+    case 3:
+      cameraErrorStatus = "NOT READY";
+      break;
+    default:
+      cameraErrorStatus = "ERROR " + cameraErrorCode;
+      break;
+  }
+}
+
+void sendPatternParametersToHardware() {
+  if (!hardwareConnected) return;
+  
+  // Send parameters based on pattern type
+  switch (patternType) {
+    case PATTERN_CONCENTRIC_RINGS:
+      // Send ring radii for concentric rings pattern
+      arduinoPort.write(CMD_SET_INNER_RADIUS + "" + innerRingRadius + "\n");
+      arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + middleRingRadius + "\n");
+      arduinoPort.write(CMD_SET_OUTER_RADIUS + "" + outerRingRadius + "\n");
+      break;
+      
+    case PATTERN_SPIRAL:
+      // Send spiral parameters
+      arduinoPort.write(CMD_SET_INNER_RADIUS + "" + spiralMaxRadius + "\n");  // Reuse inner radius command
+      arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + spiralTurns + "\n");     // Reuse middle radius command
+      break;
+      
+    case PATTERN_GRID:
+      // Send grid parameters
+      arduinoPort.write(CMD_SET_INNER_RADIUS + "" + gridSpacing + "\n");      // Reuse inner radius command
+      arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + gridPointSize + "\n");   // Reuse middle radius command
+      // Send X and Y offsets as a combined parameter to the outer radius command
+      // Format: X*10+Y (this allows 0-9 values for each)
+      int combinedOffset = (gridOffsetX * 10) + gridOffsetY;
+      arduinoPort.write(CMD_SET_OUTER_RADIUS + "" + combinedOffset + "\n");   // Reuse outer radius command
+      // Also send the LED spacing - it's used in grid mode too
+      arduinoPort.write(CMD_SET_SPACING + "" + ledSkip + "\n");
+      break;
+      
+    case PATTERN_CENTER_ONLY:
+      // No parameters to send for center only
+      break;
+  }
+  
+  // Send common parameters
+  arduinoPort.write(CMD_SET_SPACING + "" + ledSkip + "\n");
+  
+  // Send camera settings
+  String cameraCommand = CMD_SET_CAMERA + 
+                       "S," +  // S for settings
+                       (cameraEnabled ? "1" : "0") + "," +
+                       cameraPreDelay + "," +
+                       cameraPulseWidth + "," +
+                       cameraPostDelay;
+  
+  arduinoPort.write(cameraCommand + "\n");
+  println("Camera settings sent: enabled=" + cameraEnabled + 
+          ", preDelay=" + cameraPreDelay + 
+          ", pulseWidth=" + cameraPulseWidth + 
+          ", postDelay=" + cameraPostDelay);
+}
+
+void processSerialData() {
+  // Process any incoming serial data
+  if (arduinoPort.available() > 0) {
+    String data = arduinoPort.readStringUntil('\n');
+    if (data != null) {
+      data = data.trim();
+      println("Received from Arduino: " + data);
+      
+      // Parse data based on protocol
+      if (data.startsWith("LED,")) {
+        // Format: LED,x,y,color
+        String[] parts = data.substring(4).split(",");
+        if (parts.length == 3) {
+          try {
+            int x = Integer.parseInt(parts[0]);
+            int y = Integer.parseInt(parts[1]);
+            int colorValue = Integer.parseInt(parts[2]);
+            
+            // Update LED display
+            currentLedX = x;
+            currentLedY = y;
+            currentColor = colorValue;
+          } catch (Exception e) {
+            println("Error parsing LED data: " + e.getMessage());
+          }
+        }
+      } else if (data.startsWith("STATUS,")) {
+        // Format: STATUS,running,idle,progress,cameraEnabled,cameraTriggerActive,cameraErrorCode
+        String[] parts = data.substring(7).split(",");
+        if (parts.length >= 3) {
+          try {
+            running = parts[0].equals("1");
+            idleMode = parts[1].equals("1");
+            float progress = Float.parseFloat(parts[2]);
+            sequenceIndex = (int)(progress * illuminationSequence.size());
+            
+            // Process additional camera status if available
+            if (parts.length >= 4) {
+              cameraEnabled = parts[3].equals("1");
+            }
+            
+            if (parts.length >= 6) {
+              cameraTriggerActive = parts[4].equals("1");
+              cameraErrorCode = Integer.parseInt(parts[5]);
+              
+              // Update the last trigger time if trigger is active
+              if (cameraTriggerActive) {
+                cameraLastTriggerTime = millis();
+              }
+              
+              // Update error status text based on error code
+              updateCameraErrorStatus();
+            }
+          } catch (Exception e) {
+            println("Error parsing status data: " + e.getMessage());
+          }
+        }
+      } else if (data.startsWith("CAMERA,")) {
+        // Format: CAMERA,triggerActive,errorCode
+        String[] parts = data.substring(7).split(",");
+        if (parts.length >= 2) {
+          try {
+            cameraTriggerActive = parts[0].equals("1");
+            cameraErrorCode = Integer.parseInt(parts[1]);
+            
+            // Update last trigger time when camera becomes active
+            if (cameraTriggerActive) {
+              cameraLastTriggerTime = millis();
+            }
+            
+            // Update error status text based on error code
+            updateCameraErrorStatus();
+            
+          } catch (Exception e) {
+            println("Error parsing camera data: " + e.getMessage());
+          }
+        }
+      }
+    }
+  }
+}
+
+void serialEvent(Serial port) {
+  // This is called when data is available from the serial port
+  processSerialData();
+}
+
+void keyPressed() {
+  // Keyboard shortcuts
+  if (key == 'g' || key == 'G') {
+    showGrid = !showGrid;
+    cp5.getController("gridToggle").setValue(showGrid ? 1 : 0);
+  }
+  
+  if (key == ' ') {
+    paused = !paused;
+  }
+  
+  if (key == 's' || key == 'S') {
+    String filename = "led_matrix_" + year() + month() + day() + hour() + minute() + second() + ".png";
+    save(filename);
+    println("Pattern saved as: " + filename);
+  }
+  
+  if (key == 'r' || key == 'R') {
+    // Refresh the serial port list
+    availablePorts = Serial.list();
+    updatePortList();
+    println("Serial port list refreshed");
+  }
+}
