@@ -44,14 +44,18 @@ int spiralMaxRadius = 30;
 int spiralTurns = 3;
 
 // Grid pattern parameters
-int gridSpacing = 8;       // Base spacing between grid points
+int gridSpacing = 1;       // Default to spacing of 1 (every other LED)
 int gridPointSize = 1;     // Size of each grid point (1 = single LED, 2 = 2x2 LEDs, etc.)
+int gridOffsetX = 0;       // X offset for the grid (0-4 pixels)
+int gridOffsetY = 0;       // Y offset for the grid (0-4 pixels)
 
 // Common parameters
 float ledPitchMM = 2.0;
-float targetLedSpacingMM = 4.0;
+float targetLedSpacingMM = 2.0;  // Default to 2mm physical spacing
 int ledSkip;
-int patternType = PATTERN_CONCENTRIC_RINGS;
+int patternType = PATTERN_GRID;  // Default to grid pattern
+boolean circleMaskMode = true;   // Default to circle mask enabled
+int circleMaskRadius = 19;       // Default mask radius
 
 // Arduino communication
 Serial arduinoPort;
@@ -92,8 +96,6 @@ boolean showGrid = true;
 boolean running = false;
 boolean paused = false;
 boolean idleMode = false;
-boolean circleMaskMode = false;  // Toggle for circle mask mode
-int circleMaskRadius = 25;       // Radius for the circle mask in pixels
 
 // Pattern storage
 boolean[][] ledPattern;
@@ -552,7 +554,7 @@ void setupUI() {
     .addItem("Center Only", PATTERN_CENTER_ONLY)
     .addItem("Spiral", PATTERN_SPIRAL)
     .addItem("Grid", PATTERN_GRID)
-    .activate(PATTERN_CONCENTRIC_RINGS)
+    .activate(patternType)  // Use default value from variable
     .moveTo(patternGroup);
     
   // Calculate exact position for slider section based on radio button heights
@@ -571,8 +573,9 @@ void setupUI() {
   // Calculate slider dimensions to leave room for labels
   final int SLIDER_WIDTH = 140; // Significantly narrower to leave room for labels
   final int LABEL_OFFSET = 8;   // Space between slider and its label
-  final int SLIDER_SPACING = 25; // Space between sliders (reduced for better fit)
-  final int GROUP_HEIGHT = 100;  // Height for parameter groups (reduced to save space)
+  final int SLIDER_SPACING = 22; // Space between sliders (reduced further for better fit)
+  final int GROUP_HEIGHT = 100;  // Height for most parameter groups
+  final int GRID_GROUP_HEIGHT = 150; // Extra height for grid group to accommodate more sliders
   int sliderY = sliderSectionY + 25; // Start position for sliders (moved slightly higher)
   
   // Create pattern-specific parameter groups
@@ -648,11 +651,11 @@ void setupUI() {
     .moveTo(spiralGroup);
   spiralTurnsSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
   
-  // 3. Grid Pattern Group
+  // 3. Grid Pattern Group - needs more height for additional sliders
   gridGroup = cp5.addGroup("gridParams")
     .setPosition(CONTROL_MARGIN, sliderY)
     .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
-    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundHeight(GRID_GROUP_HEIGHT)
     .setBackgroundColor(color(30, 30, 30, 100))
     .hideBar()
     .moveTo(patternGroup);
@@ -664,7 +667,7 @@ void setupUI() {
     .setPosition(10, paramY)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(0, 12)  // Start from 0 to allow for every LED to be lit
-    .setValue(8)
+    .setValue(gridSpacing)  // Use default value from variable
     .setLabel("Grid Spacing")
     .moveTo(gridGroup);
   gridSpacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
@@ -678,6 +681,27 @@ void setupUI() {
     .setLabel("Grid Point Size")
     .moveTo(gridGroup);
   gridPointSizeSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  // Add X and Y offset sliders for fine grid positioning
+  Slider gridOffsetXSlider = cp5.addSlider("gridOffsetX")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(0, 4)  // Small offset range for fine adjustments
+    .setValue(0)
+    .setLabel("X Offset")
+    .moveTo(gridGroup);
+  gridOffsetXSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider gridOffsetYSlider = cp5.addSlider("gridOffsetY")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(0, 4)  // Small offset range for fine adjustments
+    .setValue(0)
+    .setLabel("Y Offset")
+    .moveTo(gridGroup);
+  gridOffsetYSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
   
   // 4. Center Only Pattern Group
   centerGroup = cp5.addGroup("centerParams")
@@ -700,20 +724,27 @@ void setupUI() {
   // Place it directly after the parameter groups with minimal space
   sliderY += GROUP_HEIGHT + 5; // Reduced spacing
   
+  // Create physical spacing slider with 0.1mm increments
   Slider spacingSlider = cp5.addSlider("targetLedSpacingMM")
     .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
-    .setRange(2, 6)
-    .setValue(4)
-    .setLabel("LED Spacing (mm)")
+    .setRange(1.0, 6.0)  // Allow spacing from 1mm to 6mm
+    .setValue(targetLedSpacingMM)
+    .setDecimalPrecision(1)  // Show one decimal place
+    .setNumberOfTickMarks(51)  // 51 tick marks for 1.0 to 6.0 in 0.1 increments
+    .setLabel("Physical Spacing (mm)")
+    .snapToTickMarks(true)  // Snap to 0.1mm increments
     .moveTo(patternGroup);
   spacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
   sliderY += SLIDER_SPACING + 5; // Reduced spacing before circle mask section
   
-  // Initially show only the concentric rings panel (default pattern)
+  // Initially show only the parameter panel for the default pattern
+  concentricRingsGroup.hide();
   spiralGroup.hide();
-  gridGroup.hide();
   centerGroup.hide();
+  
+  // Show the grid group since it's the default pattern
+  gridGroup.show();
   
   // Add Circle Mask section title
   cp5.addTextlabel("maskTitle")
@@ -728,7 +759,7 @@ void setupUI() {
     .setPosition(CONTROL_MARGIN + 100, sliderY)
     .setSize(50, 15)
     .setLabel("")
-    .setValue(false)
+    .setValue(circleMaskMode)  // Use default value from variable
     .moveTo(patternGroup);
   
   sliderY += 25; // Reduced space after the title and toggle
@@ -738,7 +769,7 @@ void setupUI() {
     .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
     .setRange(5, 32)
-    .setValue(25)
+    .setValue(circleMaskRadius)  // Use default value from variable
     .setLabel("Mask Radius")
     .moveTo(patternGroup);
   // Configure label after adding to group
@@ -1144,6 +1175,8 @@ public void controlEvent(ControlEvent event) {
       // Grid parameters
       name.equals("gridSpacing") ||
       name.equals("gridPointSize") ||
+      name.equals("gridOffsetX") ||
+      name.equals("gridOffsetY") ||
       // Common parameters
       name.equals("targetLedSpacingMM") ||
       name.equals("circleMaskRadius");
@@ -1277,6 +1310,15 @@ void generateGrid() {
   // Get grid parameters
   int spacing = gridSpacing;
   int pointSize = gridPointSize;
+  int offsetX = gridOffsetX;
+  int offsetY = gridOffsetY;
+  
+  // Start with a clean pattern (fixes center LED issue)
+  for (int y = 0; y < MATRIX_HEIGHT; y++) {
+    for (int x = 0; x < MATRIX_WIDTH; x++) {
+      ledPattern[y][x] = false;
+    }
+  }
   
   // Special case: when spacing is 0, light every LED (full grid)
   if (spacing == 0) {
@@ -1288,16 +1330,23 @@ void generateGrid() {
     return;
   }
   
-  // Calculate the grid step size based on spacing
-  int step = spacing + 1;
+  // Use targetLedSpacingMM to adjust the grid spacing
+  // Calculate the number of LEDs to skip to achieve the desired physical spacing
+  float ledSpacing = targetLedSpacingMM / ledPitchMM;
+  int physicalStep = max(1, round(ledSpacing)) * (spacing + 1);
   
-  // Calculate offset to center the grid
-  int offsetX = (MATRIX_WIDTH % step) / 2;
-  int offsetY = (MATRIX_HEIGHT % step) / 2;
+  // Ensure we don't exceed matrix bounds with our step size
+  physicalStep = min(physicalStep, MATRIX_WIDTH / 4); // Limit to 1/4 of matrix width
+  
+  // Calculate base offset to center the grid, then add user-defined offset
+  int baseOffsetX = (MATRIX_WIDTH % physicalStep) / 2;
+  int baseOffsetY = (MATRIX_HEIGHT % physicalStep) / 2;
+  int finalOffsetX = (baseOffsetX + offsetX) % physicalStep; // Wrap around if needed
+  int finalOffsetY = (baseOffsetY + offsetY) % physicalStep; // Wrap around if needed
   
   // Generate a regular grid with specified spacing and point size
-  for (int gridY = offsetY; gridY < MATRIX_HEIGHT; gridY += step) {
-    for (int gridX = offsetX; gridX < MATRIX_WIDTH; gridX += step) {
+  for (int gridY = finalOffsetY; gridY < MATRIX_HEIGHT; gridY += physicalStep) {
+    for (int gridX = finalOffsetX; gridX < MATRIX_WIDTH; gridX += physicalStep) {
       // For each grid point, light up a square of LEDs based on point size
       for (int y = 0; y < pointSize; y++) {
         for (int x = 0; x < pointSize; x++) {
@@ -1313,9 +1362,14 @@ void generateGrid() {
     }
   }
   
-  // Debug output for grid parameters
-  println("Generated grid with spacing=" + spacing + ", pointSize=" + pointSize + 
-          ", physical spacing=" + (step * ledPitchMM) + "mm");
+  // Debug output for grid parameters with physical spacing info
+  float actualPhysicalSpacing = physicalStep * ledPitchMM;
+  println("Generated grid with spacing=" + spacing + 
+          ", pointSize=" + pointSize + 
+          ", offsets=(" + offsetX + "," + offsetY + ")" +
+          ", targetSpacing=" + targetLedSpacingMM + "mm" +
+          ", actualSpacing=" + actualPhysicalSpacing + "mm" +
+          ", step=" + physicalStep + " LEDs");
 }
 
 void generateIlluminationSequence() {
@@ -1442,6 +1496,12 @@ void sendPatternParametersToHardware() {
       // Send grid parameters
       arduinoPort.write(CMD_SET_INNER_RADIUS + "" + gridSpacing + "\n");      // Reuse inner radius command
       arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + gridPointSize + "\n");   // Reuse middle radius command
+      // Send X and Y offsets as a combined parameter to the outer radius command
+      // Format: X*10+Y (this allows 0-9 values for each)
+      int combinedOffset = (gridOffsetX * 10) + gridOffsetY;
+      arduinoPort.write(CMD_SET_OUTER_RADIUS + "" + combinedOffset + "\n");   // Reuse outer radius command
+      // Also send the LED spacing - it's used in grid mode too
+      arduinoPort.write(CMD_SET_SPACING + "" + ledSkip + "\n");
       break;
       
     case PATTERN_CENTER_ONLY:
