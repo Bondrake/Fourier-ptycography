@@ -7,7 +7,7 @@
  * This model will be a prime candidate for porting to Rust in the future Tauri migration.
  */
 
-class CameraModel {
+class CameraModel extends EventDispatcher {
   // Camera settings
   private boolean enabled = true;
   private int preDelay = 400;        // Delay before trigger in ms
@@ -25,9 +25,6 @@ class CameraModel {
   public static final int ERROR_TIMEOUT = 1;
   public static final int ERROR_TRIGGER_FAILURE = 2;
   public static final int ERROR_NOT_READY = 3;
-  
-  // Observer pattern
-  private ArrayList<CameraObserver> observers = new ArrayList<CameraObserver>();
   
   /**
    * Constructor with default settings
@@ -47,22 +44,6 @@ class CameraModel {
   }
   
   /**
-   * Add observer for camera status changes
-   */
-  public void addObserver(CameraObserver observer) {
-    observers.add(observer);
-  }
-  
-  /**
-   * Notify observers of camera status changes
-   */
-  private void notifyObservers() {
-    for (CameraObserver observer : observers) {
-      observer.onCameraStatusChanged();
-    }
-  }
-  
-  /**
    * Simulate camera trigger (for simulation mode)
    */
   public void simulateTrigger() {
@@ -75,7 +56,7 @@ class CameraModel {
     // Set trigger active and notify observers
     triggerActive = true;
     lastTriggerTime = millis();
-    notifyObservers();
+    publishEvent(EventType.CAMERA_STATUS_CHANGED);
     
     // Create a thread to simulate the camera timing sequence
     Thread t = new Thread(new Runnable() {
@@ -89,7 +70,7 @@ class CameraModel {
           
           // End of trigger pulse
           triggerActive = false;
-          notifyObservers();
+          publishEvent(EventType.CAMERA_STATUS_CHANGED);
           
           // Simulate post-delay
           Thread.sleep(postDelay);
@@ -124,7 +105,7 @@ class CameraModel {
     }
     
     if (changed) {
-      notifyObservers();
+      publishEvent(EventType.CAMERA_STATUS_CHANGED);
     }
   }
   
@@ -161,7 +142,7 @@ class CameraModel {
   public void setEnabled(boolean enabled) {
     if (this.enabled != enabled) {
       this.enabled = enabled;
-      notifyObservers();
+      publishEvent(EventType.CAMERA_STATUS_CHANGED);
     }
   }
   
@@ -172,7 +153,7 @@ class CameraModel {
   public void setPreDelay(int delay) {
     if (preDelay != delay && delay >= 0) {
       preDelay = delay;
-      notifyObservers();
+      publishEvent(EventType.CAMERA_STATUS_CHANGED);
     }
   }
   
@@ -183,7 +164,7 @@ class CameraModel {
   public void setPulseWidth(int width) {
     if (pulseWidth != width && width > 0) {
       pulseWidth = width;
-      notifyObservers();
+      publishEvent(EventType.CAMERA_STATUS_CHANGED);
     }
   }
   
@@ -194,7 +175,7 @@ class CameraModel {
   public void setPostDelay(int delay) {
     if (postDelay != delay && delay >= 0) {
       postDelay = delay;
-      notifyObservers();
+      publishEvent(EventType.CAMERA_STATUS_CHANGED);
     }
   }
   
@@ -227,7 +208,7 @@ class CameraModel {
     if (errorCode != ERROR_NONE) {
       errorCode = ERROR_NONE;
       errorStatus = "";
-      notifyObservers();
+      publishEvent(EventType.CAMERA_STATUS_CHANGED);
     }
   }
   
@@ -254,9 +235,4 @@ class CameraModel {
   }
 }
 
-/**
- * Observer interface for camera status changes
- */
-interface CameraObserver {
-  void onCameraStatusChanged();
-}
+// Using EventSystem instead of observer pattern

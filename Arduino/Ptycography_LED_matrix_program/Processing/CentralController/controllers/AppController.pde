@@ -6,7 +6,7 @@
  * Handles user input and manages application flow.
  */
 
-class AppController implements SerialEventCallback {
+class AppController extends EventDispatcher implements SerialEventCallback {
   // Models
   private PatternModel patternModel;
   private SystemStateModel stateModel;
@@ -44,8 +44,42 @@ class AppController implements SerialEventCallback {
     statusView = new StatusPanelView(patternModel, stateModel, cameraModel,
                                     0, 50, 330);
     
+    // Register for events
+    registerEvent(EventType.PATTERN_CHANGED);
+    registerEvent(EventType.STATE_CHANGED);
+    registerEvent(EventType.CAMERA_STATUS_CHANGED);
+    registerEvent(EventType.CONFIG_LOADED);
+    
+    // Load config and apply settings
+    loadConfigSettings();
+    
     // Configure UI
     setupUI();
+  }
+  
+  /**
+   * Load and apply settings from configuration
+   */
+  private void loadConfigSettings() {
+    ConfigManager config = ConfigManager.getInstance();
+    
+    // Apply pattern settings
+    JSONObject patternConfig = config.getPatternConfig();
+    patternModel.setPatternType(patternConfig.getInt("patternType", 0));
+    patternModel.setInnerRingRadius(patternConfig.getInt("innerRadius", 16));
+    patternModel.setMiddleRingRadius(patternConfig.getInt("middleRadius", 24));
+    patternModel.setOuterRingRadius(patternConfig.getInt("outerRadius", 31));
+    patternModel.setGridSpacing(patternConfig.getInt("ledSkip", 2));
+    
+    // Apply camera settings
+    JSONObject cameraConfig = config.getCameraConfig();
+    cameraModel.setEnabled(cameraConfig.getBoolean("enabled", true));
+    cameraModel.setPreDelay(cameraConfig.getInt("preDelay", 400));
+    cameraModel.setPulseWidth(cameraConfig.getInt("pulseWidth", 100));
+    cameraModel.setPostDelay(cameraConfig.getInt("postDelay", 1500));
+    
+    // Apply simulation mode setting
+    stateModel.setSimulationMode(config.getSimulationMode());
   }
   
   /**
@@ -269,6 +303,63 @@ class AppController implements SerialEventCallback {
   public void onSerialData(String data) {
     // No additional processing needed here
     // SerialManager already updates the models
+    
+    // Publish event for other components
+    publishEvent(EventType.SERIAL_DATA_RECEIVED, new EventData("data", data));
+  }
+  
+  /**
+   * Handle incoming events
+   */
+  @Override
+  public void handleEvent(String eventType, EventData data) {
+    switch (eventType) {
+      case EventType.CONFIG_LOADED:
+        // Configuration was loaded, update models
+        loadConfigSettings();
+        break;
+        
+      case EventType.PATTERN_CHANGED:
+        // Pattern was changed, update configuration and potentially send to hardware
+        ConfigManager.getInstance().updatePatternConfig(patternModel);
+        ConfigManager.getInstance().saveToFile();
+        
+        if (!stateModel.isSimulationMode() && serialManager.isConnected()) {
+          serialManager.sendPatternParameters();
+        }
+        break;
+        
+      case EventType.CAMERA_STATUS_CHANGED:
+        // Camera status was changed, update configuration
+        ConfigManager.getInstance().updateCameraConfig(cameraModel);
+        ConfigManager.getInstance().saveToFile();
+        break;
+        
+      case EventType.STATE_CHANGED:
+        // System state changed, might need to update UI or save settings
+        break;
+    }
+  }
+  
+  /**
+   * Save application settings
+   */
+  public void saveSettings() {
+    // Update all configuration from current models
+    ConfigManager config = ConfigManager.getInstance();
+    
+    // Update pattern config
+    config.updatePatternConfig(patternModel);
+    
+    // Update camera config
+    config.updateCameraConfig(cameraModel);
+    
+    // Update other settings
+    config.setSimulationMode(stateModel.isSimulationMode());
+    config.setWindowDimensions(width, height);
+    
+    // Save to file
+    config.saveToFile();
   }
   
   /**

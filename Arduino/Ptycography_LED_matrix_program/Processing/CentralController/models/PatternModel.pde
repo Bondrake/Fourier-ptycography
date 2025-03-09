@@ -7,7 +7,7 @@
  * This model will be a prime candidate for porting to Rust in the future Tauri migration.
  */
 
-class PatternModel {
+class PatternModel extends EventDispatcher {
   // Pattern types
   public static final int PATTERN_CONCENTRIC_RINGS = 0;
   public static final int PATTERN_CENTER_ONLY = 1;
@@ -34,9 +34,6 @@ class PatternModel {
   private boolean circleMaskMode = true;
   private int circleMaskRadius = 19;
   
-  // Observer pattern
-  private ArrayList<PatternObserver> observers = new ArrayList<PatternObserver>();
-  
   /**
    * Constructor
    */
@@ -46,22 +43,6 @@ class PatternModel {
     this.ledPattern = new boolean[height][width];
     this.illuminationSequence = new ArrayList<PVector>();
     generatePattern();
-  }
-  
-  /**
-   * Add observer for pattern changes
-   */
-  public void addObserver(PatternObserver observer) {
-    observers.add(observer);
-  }
-  
-  /**
-   * Notify observers of pattern changes
-   */
-  private void notifyObservers() {
-    for (PatternObserver observer : observers) {
-      observer.onPatternChanged();
-    }
   }
   
   /**
@@ -102,8 +83,8 @@ class PatternModel {
     // Generate the illumination sequence
     generateIlluminationSequence();
     
-    // Notify observers of pattern change
-    notifyObservers();
+    // Notify about pattern change
+    publishEvent(EventType.PATTERN_CHANGED);
   }
   
   /**
@@ -419,11 +400,14 @@ class PatternModel {
   public int getSequenceLength() {
     return illuminationSequence.size();
   }
+  
+  public int getMatrixWidth() {
+    return matrixWidth;
+  }
+  
+  public int getMatrixHeight() {
+    return matrixHeight;
+  }
 }
 
-/**
- * Observer interface for pattern changes
- */
-interface PatternObserver {
-  void onPatternChanged();
-}
+// Using EventSystem instead of observer pattern

@@ -8,7 +8,7 @@
  * scattered across the application.
  */
 
-class SystemStateModel {
+class SystemStateModel extends EventDispatcher {
   // State enums
   public enum RunState {
     STOPPED,
@@ -35,30 +35,11 @@ class SystemStateModel {
   private int lastBlinkTime = 0;
   private int idleBlinkInterval = 60000;  // 1 minute between blinks
   
-  // Observer pattern
-  private ArrayList<StateObserver> observers = new ArrayList<StateObserver>();
-  
   /**
    * Constructor
    */
   public SystemStateModel() {
     // Nothing needed here
-  }
-  
-  /**
-   * Add observer for state changes
-   */
-  public void addObserver(StateObserver observer) {
-    observers.add(observer);
-  }
-  
-  /**
-   * Notify observers of state changes
-   */
-  private void notifyObservers() {
-    for (StateObserver observer : observers) {
-      observer.onStateChanged();
-    }
   }
   
   /**
@@ -72,7 +53,7 @@ class SystemStateModel {
     
     runState = RunState.RUNNING;
     idleMode = false;
-    notifyObservers();
+    publishEvent(EventType.STATE_CHANGED);
   }
   
   /**
@@ -81,7 +62,7 @@ class SystemStateModel {
   public void pauseSequence() {
     if (runState == RunState.RUNNING) {
       runState = RunState.PAUSED;
-      notifyObservers();
+      publishEvent(EventType.STATE_CHANGED);
     }
   }
   
@@ -93,7 +74,7 @@ class SystemStateModel {
     sequenceIndex = 0;
     currentLedX = -1;
     currentLedY = -1;
-    notifyObservers();
+    publishEvent(EventType.STATE_CHANGED);
   }
   
   /**
@@ -105,7 +86,7 @@ class SystemStateModel {
     lastBlinkTime = millis();
     currentLedX = -1;
     currentLedY = -1;
-    notifyObservers();
+    publishEvent(EventType.STATE_CHANGED);
   }
   
   /**
@@ -115,7 +96,7 @@ class SystemStateModel {
     idleMode = false;
     currentLedX = -1;
     currentLedY = -1;
-    notifyObservers();
+    publishEvent(EventType.STATE_CHANGED);
   }
   
   /**
@@ -149,7 +130,7 @@ class SystemStateModel {
     }
     
     if (changed) {
-      notifyObservers();
+      publishEvent(EventType.STATE_CHANGED);
     }
   }
   
@@ -167,7 +148,7 @@ class SystemStateModel {
     }
     
     if (changed) {
-      notifyObservers();
+      publishEvent(EventType.STATE_CHANGED);
     }
   }
   
@@ -225,7 +206,7 @@ class SystemStateModel {
     }
     
     if (changed) {
-      notifyObservers();
+      publishEvent(EventType.STATE_CHANGED);
     }
   }
   
@@ -285,9 +266,4 @@ class SystemStateModel {
   }
 }
 
-/**
- * Observer interface for state changes
- */
-interface StateObserver {
-  void onStateChanged();
-}
+// Using EventSystem instead of observer pattern
