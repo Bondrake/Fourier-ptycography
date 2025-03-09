@@ -10,6 +10,12 @@
 #include <Arduino.h>
 #include "../PtycographyConfig.h"
 
+// Error code definitions
+#define CAMERA_ERROR_NONE 0
+#define CAMERA_ERROR_TIMEOUT 1
+#define CAMERA_ERROR_TRIGGER_FAILURE 2
+#define CAMERA_ERROR_NOT_READY 3
+
 class CameraManager {
   public:
     // Constructor
@@ -38,6 +44,11 @@ class CameraManager {
     unsigned long getLastTriggerTime() const;
     int getTriggerCount() const;
     
+    // Status reporting methods
+    bool isTriggerActive() const;
+    int getErrorCode() const;
+    void clearErrorCode();
+    
   private:
     int _triggerPin;
     bool _enabled;
@@ -46,6 +57,8 @@ class CameraManager {
     int _postDelay;
     unsigned long _lastTriggerTime;
     int _triggerCount;
+    bool _triggerActive;
+    int _errorCode;
     
     // Internal methods
     bool sendTriggerPulse(int pulseWidth);

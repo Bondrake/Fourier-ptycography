@@ -50,6 +50,10 @@ int cameraPulseWidth = 100;  // Camera trigger pulse width in ms
 int cameraPostDelay = 1500;  // Delay in ms after triggering (for capture)
 #define PIN_PHOTO_TRIGGER 5  // Pin used to trigger camera shutter
 
+// Camera status tracking
+boolean cameraTriggerActive = false;
+int cameraErrorCode = 0;     // 0 = no error, error codes match CameraManager
+
 // Current LED state
 int currentLedX = -1;
 int currentLedY = -1;
@@ -561,7 +565,7 @@ void sendLedUpdate() {
 
 void sendStatus() {
   // Send status update to Processing
-  // Format: STATUS,running,idle,progress,cameraEnabled
+  // Format: STATUS,running,idle,progress,cameraEnabled,cameraTriggerActive,cameraErrorCode
   Serial.print("STATUS,");
   Serial.print(running ? "1" : "0");
   Serial.print(",");
@@ -577,7 +581,29 @@ void sendStatus() {
   
   // Add camera status
   Serial.print(",");
-  Serial.println(cameraEnabled ? "1" : "0");
+  Serial.print(cameraEnabled ? "1" : "0");
+  
+  // Add camera trigger status (active/inactive)
+  Serial.print(",");
+  Serial.print(cameraTriggerActive ? "1" : "0");
+  
+  // Add camera error code (0 = no error)
+  Serial.print(",");
+  Serial.println(cameraErrorCode);
+  
+  // Also send detailed camera status as a separate message
+  sendCameraStatus();
+}
+
+/**
+ * Send detailed camera status to Processing
+ * Format: CAMERA,triggerActive,errorCode
+ */
+void sendCameraStatus() {
+  Serial.print("CAMERA,");
+  Serial.print(cameraTriggerActive ? "1" : "0");
+  Serial.print(",");
+  Serial.println(cameraErrorCode);
 }
 
 /**
@@ -587,8 +613,15 @@ void sendStatus() {
  * @return True if successful, false on error
  */
 bool triggerCamera(int customPulseWidth = -1) {
+  // Reset error code
+  cameraErrorCode = 0;
+  
   // Skip if camera triggering is disabled
   if (!cameraEnabled) return true;
+  
+  // Set trigger state active and send status update
+  cameraTriggerActive = true;
+  sendCameraStatus();
   
   // Use custom or default pulse width
   int pulseWidth = (customPulseWidth > 0) ? customPulseWidth : cameraPulseWidth;
@@ -609,6 +642,10 @@ bool triggerCamera(int customPulseWidth = -1) {
   if (cameraPostDelay > 0) {
     delay(cameraPostDelay);
   }
+  
+  // Reset trigger state and send status update
+  cameraTriggerActive = false;
+  sendCameraStatus();
   
   return true;
 }

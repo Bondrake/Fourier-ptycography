@@ -19,6 +19,8 @@ CameraManager::CameraManager(int triggerPin) {
   _postDelay = POSTFRAME_DELAY;
   _lastTriggerTime = 0;
   _triggerCount = 0;
+  _triggerActive = false;
+  _errorCode = CAMERA_ERROR_NONE;
 }
 
 /**
@@ -41,8 +43,14 @@ void CameraManager::begin() {
  * @return True if successful, false on error
  */
 bool CameraManager::triggerCamera(bool waitForReady) {
+  // Clear previous error state
+  _errorCode = CAMERA_ERROR_NONE;
+  
   // Skip if camera triggering is disabled
   if (!_enabled) return true;
+  
+  // Set trigger active state
+  _triggerActive = true;
   
   // Pre-trigger delay for camera auto-exposure to adjust
   if (_preDelay > 0) {
@@ -51,7 +59,11 @@ bool CameraManager::triggerCamera(bool waitForReady) {
   
   // Send the trigger pulse
   bool success = sendTriggerPulse(_pulseWidth);
-  if (!success) return false;
+  if (!success) {
+    _errorCode = CAMERA_ERROR_TRIGGER_FAILURE;
+    _triggerActive = false;
+    return false;
+  }
   
   // Wait for camera to complete capture if requested and configured
   #if CAMERA_USE_READY_SIGNAL == 1
@@ -64,6 +76,8 @@ bool CameraManager::triggerCamera(bool waitForReady) {
       
       // Check for timeout
       if (millis() - startTime > CAMERA_READY_TIMEOUT) {
+        _errorCode = CAMERA_ERROR_TIMEOUT;
+        _triggerActive = false;
         return false;  // Timeout waiting for camera
       }
     }
@@ -75,6 +89,9 @@ bool CameraManager::triggerCamera(bool waitForReady) {
     delay(_postDelay);
   }
   
+  // Reset trigger active state
+  _triggerActive = false;
+  
   return true;
 }
 
@@ -85,8 +102,27 @@ bool CameraManager::triggerCamera(bool waitForReady) {
  * @return True if successful, false on error
  */
 bool CameraManager::testTrigger(int customPulseWidth) {
+  // Clear previous error state
+  _errorCode = CAMERA_ERROR_NONE;
+  
+  // Skip if camera triggering is disabled
+  if (!_enabled) return true;
+  
+  // Set trigger active state
+  _triggerActive = true;
+  
+  // Send a test pulse
   int pulseWidth = (customPulseWidth > 0) ? customPulseWidth : _pulseWidth;
-  return sendTriggerPulse(pulseWidth);
+  bool success = sendTriggerPulse(pulseWidth);
+  
+  if (!success) {
+    _errorCode = CAMERA_ERROR_TRIGGER_FAILURE;
+  }
+  
+  // Reset trigger active state
+  _triggerActive = false;
+  
+  return success;
 }
 
 /**
@@ -204,4 +240,29 @@ unsigned long CameraManager::getLastTriggerTime() const {
  */
 int CameraManager::getTriggerCount() const {
   return _triggerCount;
+}
+
+/**
+ * Check if camera is currently being triggered
+ * 
+ * @return True if trigger is active, false otherwise
+ */
+bool CameraManager::isTriggerActive() const {
+  return _triggerActive;
+}
+
+/**
+ * Get the current error code
+ * 
+ * @return Error code (0 = none)
+ */
+int CameraManager::getErrorCode() const {
+  return _errorCode;
+}
+
+/**
+ * Clear the current error code
+ */
+void CameraManager::clearErrorCode() {
+  _errorCode = CAMERA_ERROR_NONE;
 }

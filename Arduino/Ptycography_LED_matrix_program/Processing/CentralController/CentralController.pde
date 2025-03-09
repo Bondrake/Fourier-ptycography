@@ -55,6 +55,12 @@ int cameraPreDelay = 400;        // Delay in ms before triggering (for auto-expo
 int cameraPulseWidth = 100;      // Camera trigger pulse width in ms
 int cameraPostDelay = 1500;      // Delay in ms after triggering (for capture)
 
+// Camera status tracking
+boolean cameraTriggerActive = false;  // Whether camera is currently being triggered
+int cameraLastTriggerTime = 0;        // Timestamp of last trigger
+int cameraErrorCode = 0;              // Current error code (0 = no error)
+String cameraErrorStatus = "";        // Human-readable error message
+
 // Common parameters
 float ledPitchMM = 2.0;
 float targetLedSpacingMM = 2.0;  // Default to 2mm physical spacing
@@ -196,7 +202,7 @@ void draw() {
 
 void drawInfoPanel() {
   final int SECTION_SPACING = 15;  // Space between sections
-  final int FIELD_SPACING = 25;    // Space between fields
+  final int FIELD_SPACING = 22;    // Space between fields (slightly reduced from original 25)
   final int LABEL_WIDTH = 100;     // Width for labels
   final int VALUE_WIDTH = 120;     // Width for values
   
@@ -222,7 +228,12 @@ void drawInfoPanel() {
                     cp5.get(Group.class, "Hardware").getBackgroundHeight() + 60; // include accordion headers
   
   // Calculate status panel size requirements with precise measurements
-  final int STATUS_SECTION_HEIGHT = 25 + (5 * FIELD_SPACING); // Status header + 5 fields
+  // Account for additional camera fields when enabled
+  int cameraFieldCount = cameraEnabled ? 3 : 1; // Base camera status + trigger info when enabled
+  if (cameraEnabled && cameraErrorStatus != null && !cameraErrorStatus.isEmpty()) cameraFieldCount++;
+  if (cameraEnabled && cameraLastTriggerTime > 0) cameraFieldCount += 3; // Last trigger time + timing diagram
+  
+  final int STATUS_SECTION_HEIGHT = 25 + ((5 + cameraFieldCount) * FIELD_SPACING); // Status header + fields
   final int CURRENT_LED_SECTION_HEIGHT = 25 + (2 * FIELD_SPACING); // LED header + 2 fields
   final int HARDWARE_SECTION_HEIGHT = !simulationMode ? (25 + (2 * FIELD_SPACING)) : 0; // Hardware section
   final int SEQUENCE_SECTION_HEIGHT = (illuminationSequence != null && illuminationSequence.size() > 0) ? 
@@ -239,9 +250,9 @@ void drawInfoPanel() {
   // Start position for information display
   int yPos;
   
-  // With increased window height, we should now have more room
-  // Position the status panel properly based on the space available
-  yPos = Math.min(panelsHeight + 30, height - statusPanelHeight - 30);
+  // Position the status panel higher up to make room for the extended camera status
+  // Subtract 60 pixels from the original position to prevent overflow
+  yPos = Math.max(20, Math.min(panelsHeight - 60, height - statusPanelHeight - 90));
   
   // If there's still not enough space, give a warning but keep all info
   if (yPos + statusPanelHeight > height) {
@@ -289,7 +300,74 @@ void drawInfoPanel() {
   yPos += FIELD_SPACING;
   
   drawField("Camera:", cameraText, yPos);
-  yPos += FIELD_SPACING + SECTION_SPACING;
+  yPos += FIELD_SPACING;
+  
+  // If camera is enabled, show detailed status
+  if (cameraEnabled) {
+    // Show active/idle status
+    String triggerText = cameraTriggerActive ? "ACTIVE" : "IDLE";
+    drawField("Trigger:", triggerText, yPos, cameraTriggerActive ? color(255, 0, 0) : color(220));
+    yPos += FIELD_SPACING;
+    
+    // Show last trigger time
+    if (cameraLastTriggerTime > 0) {
+      int timeSince = millis() - cameraLastTriggerTime;
+      String timeText = timeSince < 5000 ? (timeSince + "ms ago") : "Ready";
+      drawField("Last Trigger:", timeText, yPos);
+      yPos += FIELD_SPACING;
+    }
+    
+    // Show error status if any
+    if (cameraErrorStatus != null && !cameraErrorStatus.isEmpty()) {
+      drawField("Error:", cameraErrorStatus, yPos, color(255, 200, 0));
+      yPos += FIELD_SPACING;
+    }
+    
+    // Add timing visualization if in use
+    if (cameraLastTriggerTime > 0) {
+      yPos += 10;
+      
+      // Draw timing bar showing pre-delay, trigger and post-delay periods
+      int barWidth = 180;
+      int barHeight = 12;
+      int barX = 20;
+      float totalTime = cameraPreDelay + cameraPulseWidth + cameraPostDelay;
+      float preDelayWidth = (cameraPreDelay / totalTime) * barWidth;
+      float pulseWidth = (cameraPulseWidth / totalTime) * barWidth;
+      float postDelayWidth = (cameraPostDelay / totalTime) * barWidth;
+      
+      // Background
+      stroke(100);
+      fill(30);
+      rect(barX, yPos, barWidth, barHeight);
+      
+      // Pre-delay section (blue)
+      fill(0, 0, 180);
+      noStroke();
+      rect(barX, yPos, preDelayWidth, barHeight);
+      
+      // Pulse width section (red)
+      fill(180, 0, 0);
+      rect(barX + preDelayWidth, yPos, pulseWidth, barHeight);
+      
+      // Post-delay section (green)
+      fill(0, 180, 0);
+      rect(barX + preDelayWidth + pulseWidth, yPos, postDelayWidth, barHeight);
+      
+      // Labels
+      yPos += barHeight + 5;
+      fill(220);
+      textAlign(LEFT, TOP);
+      textSize(10);
+      text("Pre: " + cameraPreDelay + "ms", barX, yPos);
+      text("Pulse: " + cameraPulseWidth + "ms", barX + preDelayWidth + 5, yPos);
+      text("Post: " + cameraPostDelay + "ms", barX + preDelayWidth + pulseWidth + 5, yPos);
+      
+      yPos += 15;
+    }
+  }
+  
+  yPos += SECTION_SPACING;
   
   // SECTION: Current LED Information
   drawSectionHeader("CURRENT LED", yPos);
@@ -372,12 +450,17 @@ void drawSectionHeader(String title, int yPos) {
 
 // Helper method to draw a field with label and value
 void drawField(String label, String value, int yPos) {
+  drawField(label, value, yPos, color(255));
+}
+
+// Helper method to draw a field with label and value and custom value color
+void drawField(String label, String value, int yPos, color valueColor) {
   fill(200);
   textAlign(LEFT, TOP);
   textSize(13);
   text(label, 20, yPos);
   
-  fill(255);
+  fill(valueColor);
   // Use ellipsis for long values to prevent spillover
   if (value.length() > 13 && !value.contains("CONCENTRIC")) {
     value = value.substring(0, 10) + "...";
@@ -470,6 +553,38 @@ void drawLEDMatrix() {
     // Draw horizontal lines
     for (int y = 0; y <= MATRIX_HEIGHT; y += 8) {
       line(gridX, gridY + y * dynamicCellSize, gridX + matrixWidth, gridY + y * dynamicCellSize);
+    }
+  }
+  
+  // Draw camera trigger indicator in the matrix corner when enabled
+  if (cameraEnabled) {
+    int indicatorSize = 12;
+    int indicatorX = gridX + matrixWidth - indicatorSize - 8;
+    int indicatorY = gridY + 8;
+    
+    // Draw camera indicator background
+    noStroke();
+    fill(40);
+    rect(indicatorX, indicatorY, indicatorSize, indicatorSize);
+    
+    // Draw camera status indicator
+    if (cameraTriggerActive) {
+      // Show active trigger with red circle
+      fill(255, 0, 0);
+      ellipse(indicatorX + indicatorSize/2, indicatorY + indicatorSize/2, indicatorSize-2, indicatorSize-2);
+    } else if (cameraErrorStatus != null && !cameraErrorStatus.isEmpty()) {
+      // Show error with yellow triangle
+      fill(255, 255, 0);
+      triangle(
+        indicatorX + indicatorSize/2, indicatorY + 1,
+        indicatorX + 1, indicatorY + indicatorSize - 1,
+        indicatorX + indicatorSize - 1, indicatorY + indicatorSize - 1
+      );
+    } else if (cameraLastTriggerTime > 0 && (millis() - cameraLastTriggerTime < 1000)) {
+      // Show recent trigger with fading green circle
+      float alpha = map(millis() - cameraLastTriggerTime, 0, 1000, 255, 0);
+      fill(0, 255, 0, alpha);
+      ellipse(indicatorX + indicatorSize/2, indicatorY + indicatorSize/2, indicatorSize-2, indicatorSize-2);
     }
   }
   
@@ -1553,19 +1668,83 @@ void sendPatternTypeToHardware() {
 }
 
 public void testCameraButton() {
-  if (!hardwareConnected) {
+  if (!simulationMode && !hardwareConnected) {
     println("Cannot test camera: Hardware not connected");
     return;
   }
   
-  // Send camera trigger test command
-  String cameraCommand = CMD_SET_CAMERA + 
+  // Clear any prior error status
+  cameraErrorCode = 0;
+  cameraErrorStatus = "";
+  
+  // In simulation mode, simulate a camera trigger
+  if (simulationMode) {
+    simulateCameraTrigger();
+  } else {
+    // For hardware mode, send command to Arduino
+    String cameraCommand = CMD_SET_CAMERA + 
                        "T," + // T for test
                        cameraEnabled + "," +
                        cameraPulseWidth;
+    
+    arduinoPort.write(cameraCommand + "\n");
+    println("Camera test trigger sent: pulse width = " + cameraPulseWidth + "ms");
+  }
+}
+
+/**
+ * Simulate a camera trigger sequence in simulation mode
+ */
+void simulateCameraTrigger() {
+  // Simulate the camera trigger sequence
+  cameraTriggerActive = true;
+  cameraLastTriggerTime = millis();
   
-  arduinoPort.write(cameraCommand + "\n");
-  println("Camera test trigger sent: pulse width = " + cameraPulseWidth + "ms");
+  // Create a thread to simulate the camera timing sequence
+  Thread t = new Thread(new Runnable() {
+    public void run() {
+      try {
+        // Simulate pre-delay
+        Thread.sleep(cameraPreDelay);
+        
+        // Simulate trigger active
+        Thread.sleep(cameraPulseWidth);
+        
+        // End of trigger pulse
+        cameraTriggerActive = false;
+        
+        // Simulate post-delay
+        Thread.sleep(cameraPostDelay);
+      } catch (InterruptedException e) {
+        e.printStackTrace();
+      }
+    }
+  });
+  t.start();
+}
+
+/**
+ * Update camera error status based on error code
+ */
+void updateCameraErrorStatus() {
+  // Map error code to human-readable message
+  switch (cameraErrorCode) {
+    case 0:
+      cameraErrorStatus = "";  // No error
+      break;
+    case 1:
+      cameraErrorStatus = "TIMEOUT";
+      break;
+    case 2:
+      cameraErrorStatus = "TRIGGER FAILURE";
+      break;
+    case 3:
+      cameraErrorStatus = "NOT READY";
+      break;
+    default:
+      cameraErrorStatus = "ERROR " + cameraErrorCode;
+      break;
+  }
 }
 
 void sendPatternParametersToHardware() {
@@ -1648,16 +1827,54 @@ void processSerialData() {
           }
         }
       } else if (data.startsWith("STATUS,")) {
-        // Format: STATUS,running,idle,progress
+        // Format: STATUS,running,idle,progress,cameraEnabled,cameraTriggerActive,cameraErrorCode
         String[] parts = data.substring(7).split(",");
-        if (parts.length == 3) {
+        if (parts.length >= 3) {
           try {
             running = parts[0].equals("1");
             idleMode = parts[1].equals("1");
             float progress = Float.parseFloat(parts[2]);
             sequenceIndex = (int)(progress * illuminationSequence.size());
+            
+            // Process additional camera status if available
+            if (parts.length >= 4) {
+              cameraEnabled = parts[3].equals("1");
+            }
+            
+            if (parts.length >= 6) {
+              cameraTriggerActive = parts[4].equals("1");
+              cameraErrorCode = Integer.parseInt(parts[5]);
+              
+              // Update the last trigger time if trigger is active
+              if (cameraTriggerActive) {
+                cameraLastTriggerTime = millis();
+              }
+              
+              // Update error status text based on error code
+              updateCameraErrorStatus();
+            }
           } catch (Exception e) {
             println("Error parsing status data: " + e.getMessage());
+          }
+        }
+      } else if (data.startsWith("CAMERA,")) {
+        // Format: CAMERA,triggerActive,errorCode
+        String[] parts = data.substring(7).split(",");
+        if (parts.length >= 2) {
+          try {
+            cameraTriggerActive = parts[0].equals("1");
+            cameraErrorCode = Integer.parseInt(parts[1]);
+            
+            // Update last trigger time when camera becomes active
+            if (cameraTriggerActive) {
+              cameraLastTriggerTime = millis();
+            }
+            
+            // Update error status text based on error code
+            updateCameraErrorStatus();
+            
+          } catch (Exception e) {
+            println("Error parsing camera data: " + e.getMessage());
           }
         }
       }
