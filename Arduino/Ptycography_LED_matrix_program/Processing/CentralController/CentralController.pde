@@ -34,9 +34,19 @@ final int PATTERN_SPIRAL = 2;
 final int PATTERN_GRID = 3;
 
 // Pattern parameters (default values)
+// Concentric rings pattern parameters
 int innerRingRadius = 16;
 int middleRingRadius = 24;
 int outerRingRadius = 31;
+
+// Spiral pattern parameters
+int spiralMaxRadius = 30;
+int spiralTurns = 3;
+
+// Grid pattern parameters
+int gridSpacing = 8;
+
+// Common parameters
 float ledPitchMM = 2.0;
 float targetLedSpacingMM = 4.0;
 int ledSkip;
@@ -101,6 +111,12 @@ int lastBlinkTime = 0;
 // UI components
 ControlP5 cp5;
 Accordion accordion;
+
+// Pattern parameter controllers
+Group concentricRingsGroup; // Group for concentric rings pattern sliders
+Group spiralGroup;          // Group for spiral pattern sliders
+Group gridGroup;            // Group for grid pattern sliders
+Group centerGroup;          // Group for center-only pattern sliders
 
 void setup() {
   // Calculate window size based on matrix dimensions and UI elements
@@ -467,13 +483,13 @@ void setupUI() {
   final int CONTROL_MARGIN = 10;
   final int BAR_HEIGHT = 20;
   
-  // Calculate section heights with extra padding to ensure enough room
-  final int RADIO_SECTION_HEIGHT = 150;  // Title + 4 radio buttons with spacing
-  final int SLIDERS_SECTION_HEIGHT = 160; // Title + 4 sliders with spacing
-  final int MASK_SECTION_HEIGHT = 85;    // Title + toggle + slider
+  // Calculate section heights more precisely
+  final int RADIO_SECTION_HEIGHT = 140;  // Title + 4 radio buttons with spacing
+  final int SLIDERS_SECTION_HEIGHT = 140; // Title + parameter groups + spacing slider
+  final int MASK_SECTION_HEIGHT = 70;    // Title + toggle + slider
   
-  // Total heights for each group based on their content with extra padding
-  final int PATTERN_GROUP_HEIGHT = RADIO_SECTION_HEIGHT + SLIDERS_SECTION_HEIGHT + MASK_SECTION_HEIGHT + 20; // +20px extra
+  // Total heights for each group based on their content with enough padding
+  final int PATTERN_GROUP_HEIGHT = RADIO_SECTION_HEIGHT + SLIDERS_SECTION_HEIGHT + MASK_SECTION_HEIGHT + 25; // +25px padding
   final int CONTROL_GROUP_HEIGHT = 250;  // Buttons section + settings section + extra padding
   final int HARDWARE_GROUP_HEIGHT = 340; // Mode section + connection section + extra padding
   
@@ -505,10 +521,10 @@ void setupUI() {
     .setBarHeight(BAR_HEIGHT);
     
   // Constants for spacing calculations
-  final int TITLE_HEIGHT = 25;
+  final int TITLE_HEIGHT = 20; // Reduced height
   final int RADIO_BUTTON_HEIGHT = 20;
-  final int RADIO_BUTTON_SPACING = 15;
-  final int PATTERN_SECTION_SPACING = 25; // Section spacing specifically for pattern group
+  final int RADIO_BUTTON_SPACING = 12; // Reduced spacing between radio buttons
+  final int PATTERN_SECTION_SPACING = 20; // Reduced section spacing to save space
   final int NUM_RADIO_BUTTONS = 4;
   
   // Add a title for Pattern group
@@ -550,49 +566,127 @@ void setupUI() {
     .setColorValue(color(220))
     .setFont(createFont("Arial", 14))
     .moveTo(patternGroup);
-    
+  
   // Calculate slider dimensions to leave room for labels
   final int SLIDER_WIDTH = 140; // Significantly narrower to leave room for labels
   final int LABEL_OFFSET = 8;   // Space between slider and its label
+  final int SLIDER_SPACING = 25; // Space between sliders (reduced for better fit)
+  final int GROUP_HEIGHT = 100;  // Height for parameter groups (reduced to save space)
+  int sliderY = sliderSectionY + 25; // Start position for sliders (moved slightly higher)
   
-  // Set consistent spacing between sliders
-  final int SLIDER_SPACING = 30;
-  int sliderY = sliderSectionY + 30; // Start position for sliders
-  
-  // Add sliders for ring radii - with better positioning
-  Slider innerSlider = cp5.addSlider("innerRingRadius")
+  // Create pattern-specific parameter groups
+  // 1. Concentric Rings Pattern Group
+  concentricRingsGroup = cp5.addGroup("concentricRingsParams")
     .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add sliders for concentric rings pattern
+  int paramY = 10;
+  
+  Slider innerSlider = cp5.addSlider("innerRingRadius")
+    .setPosition(10, paramY)
     .setSize(SLIDER_WIDTH, 15)
-    .setRange(5, 30)
+    .setRange(2, 32)
     .setValue(16)
     .setLabel("Inner Ring Radius")
-    .moveTo(patternGroup);
-  // Configure label after adding to group
+    .moveTo(concentricRingsGroup);
   innerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
-  sliderY += SLIDER_SPACING;
-    
+  paramY += SLIDER_SPACING;
+  
   Slider middleSlider = cp5.addSlider("middleRingRadius")
-    .setPosition(CONTROL_MARGIN, sliderY)
+    .setPosition(10, paramY)
     .setSize(SLIDER_WIDTH, 15)
-    .setRange(10, 40)
+    .setRange(8, 45)
     .setValue(24)
     .setLabel("Middle Ring Radius")
-    .moveTo(patternGroup);
-  // Configure label after adding to group
+    .moveTo(concentricRingsGroup);
   middleSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
-  sliderY += SLIDER_SPACING;
-    
+  paramY += SLIDER_SPACING;
+  
   Slider outerSlider = cp5.addSlider("outerRingRadius")
-    .setPosition(CONTROL_MARGIN, sliderY)
+    .setPosition(10, paramY)
     .setSize(SLIDER_WIDTH, 15)
-    .setRange(15, 31)
+    .setRange(12, 50)
     .setValue(31)
     .setLabel("Outer Ring Radius")
-    .moveTo(patternGroup);
-  // Configure label after adding to group
+    .moveTo(concentricRingsGroup);
   outerSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
-  sliderY += SLIDER_SPACING;
-    
+  
+  // 2. Spiral Pattern Group
+  spiralGroup = cp5.addGroup("spiralParams")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add sliders for spiral pattern
+  paramY = 10;
+  
+  Slider spiralMaxRadiusSlider = cp5.addSlider("spiralMaxRadius")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(10, 50)
+    .setValue(30)
+    .setLabel("Max Radius")
+    .moveTo(spiralGroup);
+  spiralMaxRadiusSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider spiralTurnsSlider = cp5.addSlider("spiralTurns")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(1, 5)
+    .setValue(3)
+    .setLabel("Number of Turns")
+    .moveTo(spiralGroup);
+  spiralTurnsSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // 3. Grid Pattern Group
+  gridGroup = cp5.addGroup("gridParams")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add slider for grid pattern
+  Slider gridSpacingSlider = cp5.addSlider("gridSpacing")
+    .setPosition(10, 10)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(2, 12)
+    .setValue(8)
+    .setLabel("Grid Spacing")
+    .moveTo(gridGroup);
+  gridSpacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  // 4. Center Only Pattern Group
+  centerGroup = cp5.addGroup("centerParams")
+    .setPosition(CONTROL_MARGIN, sliderY)
+    .setWidth(GROUP_WIDTH - CONTROL_MARGIN*2)
+    .setBackgroundHeight(GROUP_HEIGHT)
+    .setBackgroundColor(color(30, 30, 30, 100))
+    .hideBar()
+    .moveTo(patternGroup);
+  
+  // Add label for center only (no parameters)
+  cp5.addTextlabel("centerLabel")
+    .setText("Center LED only - no additional parameters")
+    .setPosition(10, 10) // Moved up slightly
+    .setColorValue(color(200))
+    .setFont(createFont("Arial", 12))
+    .moveTo(centerGroup);
+  
+  // Add LED spacing slider common to all patterns
+  // Place it directly after the parameter groups with minimal space
+  sliderY += GROUP_HEIGHT + 5; // Reduced spacing
+  
   Slider spacingSlider = cp5.addSlider("targetLedSpacingMM")
     .setPosition(CONTROL_MARGIN, sliderY)
     .setSize(SLIDER_WIDTH, 15)
@@ -600,9 +694,13 @@ void setupUI() {
     .setValue(4)
     .setLabel("LED Spacing (mm)")
     .moveTo(patternGroup);
-  // Configure label after adding to group
   spacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
-  sliderY += SLIDER_SPACING + 10; // Extra spacing before circle mask section
+  sliderY += SLIDER_SPACING + 5; // Reduced spacing before circle mask section
+  
+  // Initially show only the concentric rings panel (default pattern)
+  spiralGroup.hide();
+  gridGroup.hide();
+  centerGroup.hide();
   
   // Add Circle Mask section title
   cp5.addTextlabel("maskTitle")
@@ -612,7 +710,7 @@ void setupUI() {
     .setFont(createFont("Arial", 14))
     .moveTo(patternGroup);
     
-  // Add Circle Mask Toggle
+  // Add Circle Mask Toggle - positioned on the same line as the title
   cp5.addToggle("circleMaskToggle")
     .setPosition(CONTROL_MARGIN + 100, sliderY)
     .setSize(50, 15)
@@ -620,7 +718,7 @@ void setupUI() {
     .setValue(false)
     .moveTo(patternGroup);
   
-  sliderY += 30; // Space after the title and toggle
+  sliderY += 25; // Reduced space after the title and toggle
     
   // Circle Mask Radius slider
   Slider circleMaskSlider = cp5.addSlider("circleMaskRadius")
@@ -638,7 +736,8 @@ void setupUI() {
   int actualPatternHeight = sliderY + 15 + 20; // Current Y + slider height + bottom padding
   
   // Always update pattern group height to ensure enough room with a minimum buffer
-  int adjustedPatternHeight = Math.max(actualPatternHeight + 20, PATTERN_GROUP_HEIGHT);
+  // Add extra padding (30px) to make sure everything fits
+  int adjustedPatternHeight = Math.max(actualPatternHeight + 30, PATTERN_GROUP_HEIGHT);
   patternGroup.setBackgroundHeight(adjustedPatternHeight);
   println("Set pattern group height to: " + adjustedPatternHeight);
     
@@ -840,6 +939,31 @@ void setupUI() {
 // Event handlers for UI components
 public void patternTypeRadio(int value) {
   patternType = value;
+  
+  // Show/hide the appropriate parameter groups based on the selected pattern
+  // Hide all groups first
+  concentricRingsGroup.hide();
+  spiralGroup.hide();
+  gridGroup.hide();
+  centerGroup.hide();
+  
+  // Show the appropriate group for the selected pattern
+  switch (patternType) {
+    case PATTERN_CONCENTRIC_RINGS:
+      concentricRingsGroup.show();
+      break;
+    case PATTERN_SPIRAL:
+      spiralGroup.show();
+      break;
+    case PATTERN_GRID:
+      gridGroup.show();
+      break;
+    case PATTERN_CENTER_ONLY:
+      centerGroup.show();
+      break;
+  }
+  
+  // Generate the new pattern
   regeneratePattern();
   generateIlluminationSequence();
   
@@ -847,6 +971,8 @@ public void patternTypeRadio(int value) {
   if (!simulationMode && hardwareConnected) {
     sendPatternTypeToHardware();
   }
+  
+  println("Pattern changed to: " + patternType);
 }
 
 public void simulationToggle(boolean value) {
@@ -994,11 +1120,24 @@ public void controlEvent(ControlEvent event) {
   // Listen for parameter changes
   if (event.isController()) {
     String name = event.getController().getName();
-    if (name.equals("innerRingRadius") || 
-        name.equals("middleRingRadius") || 
-        name.equals("outerRingRadius") || 
-        name.equals("targetLedSpacingMM") ||
-        name.equals("circleMaskRadius")) {
+    boolean isPatternParameter = 
+      // Concentric rings parameters
+      name.equals("innerRingRadius") || 
+      name.equals("middleRingRadius") || 
+      name.equals("outerRingRadius") ||
+      // Spiral parameters
+      name.equals("spiralMaxRadius") ||
+      name.equals("spiralTurns") ||
+      // Grid parameters
+      name.equals("gridSpacing") ||
+      // Common parameters
+      name.equals("targetLedSpacingMM") ||
+      name.equals("circleMaskRadius");
+    
+    if (isPatternParameter) {
+      // Debug output
+      println("Parameter changed: " + name + " = " + event.getController().getValue());
+      
       // Recalculate LED skip
       ledSkip = round(targetLedSpacingMM / ledPitchMM);
       if (ledSkip < 1) ledSkip = 1;
@@ -1100,15 +1239,13 @@ void generateSpiral() {
   int centerX = MATRIX_WIDTH / 2;
   int centerY = MATRIX_HEIGHT / 2;
   
-  // Maximum radius to stay within matrix bounds
-  float maxRadius = min(centerX, centerY) - 5;
-  
-  // Generate spiral points
-  float radiusStep = maxRadius / 50;  // Approximate steps for smooth spiral
+  // Use the spiral pattern parameters
+  float maxRadius = spiralMaxRadius;
+  int turns = spiralTurns;
   
   // Generate the spiral
-  for (float angle = 0; angle < 2 * PI * 3; angle += 0.1) {
-    float radius = (angle / (2 * PI)) * maxRadius / 3;
+  for (float angle = 0; angle < 2 * PI * turns; angle += 0.1) {
+    float radius = (angle / (2 * PI)) * maxRadius / turns;
     
     // Calculate LED coordinates (polar to cartesian conversion)
     int x = centerX + round(radius * cos(angle));
@@ -1123,10 +1260,45 @@ void generateSpiral() {
 }
 
 void generateGrid() {
-  // Use LED skip for grid spacing
-  for (int y = 0; y < MATRIX_HEIGHT; y += ledSkip) {
-    for (int x = 0; x < MATRIX_WIDTH; x += ledSkip) {
-      ledPattern[y][x] = true;
+  // Use grid spacing parameter
+  int spacing = gridSpacing;
+  
+  // Center coordinates
+  int centerX = MATRIX_WIDTH / 2;
+  int centerY = MATRIX_HEIGHT / 2;
+  
+  // Generate a grid centered on the matrix center
+  for (int y = centerY % spacing; y < MATRIX_HEIGHT; y += spacing) {
+    for (int x = centerX % spacing; x < MATRIX_WIDTH; x += spacing) {
+      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
+        ledPattern[y][x] = true;
+      }
+    }
+  }
+  
+  // Now we need to go in reverse directions too (from center to edges)
+  for (int y = centerY - (centerY % spacing); y >= 0; y -= spacing) {
+    for (int x = centerX - (centerX % spacing); x >= 0; x -= spacing) {
+      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
+        ledPattern[y][x] = true;
+      }
+    }
+  }
+  
+  // And the other two quadrants
+  for (int y = centerY % spacing; y < MATRIX_HEIGHT; y += spacing) {
+    for (int x = centerX - (centerX % spacing); x >= 0; x -= spacing) {
+      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
+        ledPattern[y][x] = true;
+      }
+    }
+  }
+  
+  for (int y = centerY - (centerY % spacing); y >= 0; y -= spacing) {
+    for (int x = centerX % spacing; x < MATRIX_WIDTH; x += spacing) {
+      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
+        ledPattern[y][x] = true;
+      }
     }
   }
 }
@@ -1236,12 +1408,32 @@ void sendPatternTypeToHardware() {
 void sendPatternParametersToHardware() {
   if (!hardwareConnected) return;
   
-  // Send ring radii
-  arduinoPort.write(CMD_SET_INNER_RADIUS + "" + innerRingRadius + "\n");
-  arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + middleRingRadius + "\n");
-  arduinoPort.write(CMD_SET_OUTER_RADIUS + "" + outerRingRadius + "\n");
+  // Send parameters based on pattern type
+  switch (patternType) {
+    case PATTERN_CONCENTRIC_RINGS:
+      // Send ring radii for concentric rings pattern
+      arduinoPort.write(CMD_SET_INNER_RADIUS + "" + innerRingRadius + "\n");
+      arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + middleRingRadius + "\n");
+      arduinoPort.write(CMD_SET_OUTER_RADIUS + "" + outerRingRadius + "\n");
+      break;
+      
+    case PATTERN_SPIRAL:
+      // Send spiral parameters
+      arduinoPort.write(CMD_SET_INNER_RADIUS + "" + spiralMaxRadius + "\n");  // Reuse inner radius command
+      arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + spiralTurns + "\n");     // Reuse middle radius command
+      break;
+      
+    case PATTERN_GRID:
+      // Send grid parameters
+      arduinoPort.write(CMD_SET_INNER_RADIUS + "" + gridSpacing + "\n");      // Reuse inner radius command
+      break;
+      
+    case PATTERN_CENTER_ONLY:
+      // No parameters to send for center only
+      break;
+  }
   
-  // Send LED spacing
+  // Send common parameters
   arduinoPort.write(CMD_SET_SPACING + "" + ledSkip + "\n");
 }
 
