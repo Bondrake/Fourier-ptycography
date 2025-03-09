@@ -1,0 +1,18 @@
+# macOS system files
+.DS_Store
+**/.DS_Store
+
+# IDE files
+.vscode/
+.idea/
+
+# Processing build directories
+build/
+out/
+
+# Temp files
+*~
+*.bak
+*.swp
+
+# Keep media files as they're examples
