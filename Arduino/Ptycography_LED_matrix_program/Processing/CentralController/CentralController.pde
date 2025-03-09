@@ -44,7 +44,8 @@ int spiralMaxRadius = 30;
 int spiralTurns = 3;
 
 // Grid pattern parameters
-int gridSpacing = 8;
+int gridSpacing = 8;       // Base spacing between grid points
+int gridPointSize = 1;     // Size of each grid point (1 = single LED, 2 = 2x2 LEDs, etc.)
 
 // Common parameters
 float ledPitchMM = 2.0;
@@ -656,15 +657,27 @@ void setupUI() {
     .hideBar()
     .moveTo(patternGroup);
   
-  // Add slider for grid pattern
+  // Add sliders for grid pattern
+  paramY = 10;
+  
   Slider gridSpacingSlider = cp5.addSlider("gridSpacing")
-    .setPosition(10, 10)
+    .setPosition(10, paramY)
     .setSize(SLIDER_WIDTH, 15)
-    .setRange(2, 12)
+    .setRange(0, 12)  // Start from 0 to allow for every LED to be lit
     .setValue(8)
     .setLabel("Grid Spacing")
     .moveTo(gridGroup);
   gridSpacingSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  paramY += SLIDER_SPACING;
+  
+  Slider gridPointSizeSlider = cp5.addSlider("gridPointSize")
+    .setPosition(10, paramY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(1, 3)  // 1 = single LED, 2 = 2x2, 3 = 3x3
+    .setValue(1)
+    .setLabel("Grid Point Size")
+    .moveTo(gridGroup);
+  gridPointSizeSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
   
   // 4. Center Only Pattern Group
   centerGroup = cp5.addGroup("centerParams")
@@ -1130,6 +1143,7 @@ public void controlEvent(ControlEvent event) {
       name.equals("spiralTurns") ||
       // Grid parameters
       name.equals("gridSpacing") ||
+      name.equals("gridPointSize") ||
       // Common parameters
       name.equals("targetLedSpacingMM") ||
       name.equals("circleMaskRadius");
@@ -1260,47 +1274,48 @@ void generateSpiral() {
 }
 
 void generateGrid() {
-  // Use grid spacing parameter
+  // Get grid parameters
   int spacing = gridSpacing;
+  int pointSize = gridPointSize;
   
-  // Center coordinates
-  int centerX = MATRIX_WIDTH / 2;
-  int centerY = MATRIX_HEIGHT / 2;
-  
-  // Generate a grid centered on the matrix center
-  for (int y = centerY % spacing; y < MATRIX_HEIGHT; y += spacing) {
-    for (int x = centerX % spacing; x < MATRIX_WIDTH; x += spacing) {
-      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
+  // Special case: when spacing is 0, light every LED (full grid)
+  if (spacing == 0) {
+    for (int y = 0; y < MATRIX_HEIGHT; y++) {
+      for (int x = 0; x < MATRIX_WIDTH; x++) {
         ledPattern[y][x] = true;
+      }
+    }
+    return;
+  }
+  
+  // Calculate the grid step size based on spacing
+  int step = spacing + 1;
+  
+  // Calculate offset to center the grid
+  int offsetX = (MATRIX_WIDTH % step) / 2;
+  int offsetY = (MATRIX_HEIGHT % step) / 2;
+  
+  // Generate a regular grid with specified spacing and point size
+  for (int gridY = offsetY; gridY < MATRIX_HEIGHT; gridY += step) {
+    for (int gridX = offsetX; gridX < MATRIX_WIDTH; gridX += step) {
+      // For each grid point, light up a square of LEDs based on point size
+      for (int y = 0; y < pointSize; y++) {
+        for (int x = 0; x < pointSize; x++) {
+          int ledX = gridX + x;
+          int ledY = gridY + y;
+          
+          // Make sure we're still within the matrix bounds
+          if (ledX >= 0 && ledX < MATRIX_WIDTH && ledY >= 0 && ledY < MATRIX_HEIGHT) {
+            ledPattern[ledY][ledX] = true;
+          }
+        }
       }
     }
   }
   
-  // Now we need to go in reverse directions too (from center to edges)
-  for (int y = centerY - (centerY % spacing); y >= 0; y -= spacing) {
-    for (int x = centerX - (centerX % spacing); x >= 0; x -= spacing) {
-      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
-        ledPattern[y][x] = true;
-      }
-    }
-  }
-  
-  // And the other two quadrants
-  for (int y = centerY % spacing; y < MATRIX_HEIGHT; y += spacing) {
-    for (int x = centerX - (centerX % spacing); x >= 0; x -= spacing) {
-      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
-        ledPattern[y][x] = true;
-      }
-    }
-  }
-  
-  for (int y = centerY - (centerY % spacing); y >= 0; y -= spacing) {
-    for (int x = centerX % spacing; x < MATRIX_WIDTH; x += spacing) {
-      if (x >= 0 && y >= 0 && x < MATRIX_WIDTH && y < MATRIX_HEIGHT) {
-        ledPattern[y][x] = true;
-      }
-    }
-  }
+  // Debug output for grid parameters
+  println("Generated grid with spacing=" + spacing + ", pointSize=" + pointSize + 
+          ", physical spacing=" + (step * ledPitchMM) + "mm");
 }
 
 void generateIlluminationSequence() {
@@ -1426,6 +1441,7 @@ void sendPatternParametersToHardware() {
     case PATTERN_GRID:
       // Send grid parameters
       arduinoPort.write(CMD_SET_INNER_RADIUS + "" + gridSpacing + "\n");      // Reuse inner radius command
+      arduinoPort.write(CMD_SET_MIDDLE_RADIUS + "" + gridPointSize + "\n");   // Reuse middle radius command
       break;
       
     case PATTERN_CENTER_ONLY:
