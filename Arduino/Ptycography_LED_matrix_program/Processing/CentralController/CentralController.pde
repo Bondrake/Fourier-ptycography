@@ -49,6 +49,12 @@ int gridPointSize = 1;     // Size of each grid point (1 = single LED, 2 = 2x2 L
 int gridOffsetX = 0;       // X offset for the grid (0-4 pixels)
 int gridOffsetY = 0;       // Y offset for the grid (0-4 pixels)
 
+// Camera parameters
+boolean cameraEnabled = true;    // Camera triggering enabled
+int cameraPreDelay = 400;        // Delay in ms before triggering (for auto-exposure)
+int cameraPulseWidth = 100;      // Camera trigger pulse width in ms
+int cameraPostDelay = 1500;      // Delay in ms after triggering (for capture)
+
 // Common parameters
 float ledPitchMM = 2.0;
 float targetLedSpacingMM = 2.0;  // Default to 2mm physical spacing
@@ -73,6 +79,7 @@ final char CMD_STOP_SEQUENCE = 'X';    // Stop sequence
 final char CMD_ENTER_IDLE = 'i';       // Enter idle mode
 final char CMD_EXIT_IDLE = 'a';        // Exit idle mode
 final char CMD_SET_LED = 'L';          // Set specific LED
+final char CMD_SET_CAMERA = 'C';       // Set camera trigger settings
 
 // Color definitions
 final color OFF_COLOR = color(20);
@@ -120,6 +127,7 @@ Group concentricRingsGroup; // Group for concentric rings pattern sliders
 Group spiralGroup;          // Group for spiral pattern sliders
 Group gridGroup;            // Group for grid pattern sliders
 Group centerGroup;          // Group for center-only pattern sliders
+Group cameraGroup;          // Group for camera control settings
 
 void setup() {
   // Calculate window size based on matrix dimensions and UI elements
@@ -255,6 +263,7 @@ void drawInfoPanel() {
   String statusText = running ? (paused ? "PAUSED" : "RUNNING") : "STOPPED";
   String idleText = idleMode ? "IDLE MODE" : "ACTIVE";
   String maskText = circleMaskMode ? "ON (r=" + circleMaskRadius + ")" : "OFF";
+  String cameraText = cameraEnabled ? "ENABLED" : "DISABLED";
   String patternText = "";
   switch (patternType) {
     case PATTERN_CONCENTRIC_RINGS: patternText = "CONCENTRIC RINGS"; break;
@@ -277,6 +286,9 @@ void drawInfoPanel() {
   yPos += FIELD_SPACING;
   
   drawField("Mask:", maskText, yPos);
+  yPos += FIELD_SPACING;
+  
+  drawField("Camera:", cameraText, yPos);
   yPos += FIELD_SPACING + SECTION_SPACING;
   
   // SECTION: Current LED Information
@@ -954,13 +966,79 @@ void setupUI() {
   hardwareGroup.setBackgroundHeight(adjustedHardwareHeight);
   println("Set hardware group height to: " + adjustedHardwareHeight);
     
+  // Create Camera Control Group
+  Group cameraControlGroup = cp5.addGroup("Camera Control")
+    .setPosition(CONTROL_MARGIN, 40 + PATTERN_GROUP_HEIGHT + CONTROL_GROUP_HEIGHT + HARDWARE_GROUP_HEIGHT + GROUP_SPACING*3)
+    .setBackgroundColor(color(0, 64))
+    .setWidth(GROUP_WIDTH)
+    .setBackgroundHeight(200)  // Enough height for camera controls
+    .setBarHeight(BAR_HEIGHT);
+    
+  // Add camera control components
+  int cameraY = 10;
+  
+  // Camera enable toggle
+  cp5.addToggle("cameraEnabled")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, TOGGLE_HEIGHT)
+    .setLabel("Enable Camera Trigger")
+    .setValue(cameraEnabled)
+    .moveTo(cameraControlGroup);
+  
+  cameraY += TOGGLE_HEIGHT + BUTTON_SPACING + 5;
+  
+  // Pre-delay slider (for camera auto-exposure)
+  Slider preDelaySlider = cp5.addSlider("cameraPreDelay")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(0, 2000)
+    .setValue(cameraPreDelay)
+    .setLabel("Pre-Trigger Delay (ms)")
+    .moveTo(cameraControlGroup);
+  preDelaySlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  cameraY += SLIDER_SPACING;
+  
+  // Pulse width slider
+  Slider pulseWidthSlider = cp5.addSlider("cameraPulseWidth")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(10, 500)
+    .setValue(cameraPulseWidth)
+    .setLabel("Trigger Pulse (ms)")
+    .moveTo(cameraControlGroup);
+  pulseWidthSlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  cameraY += SLIDER_SPACING;
+  
+  // Post-delay slider
+  Slider postDelaySlider = cp5.addSlider("cameraPostDelay")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(SLIDER_WIDTH, 15)
+    .setRange(100, 5000)
+    .setValue(cameraPostDelay)
+    .setLabel("Post-Trigger Delay (ms)")
+    .moveTo(cameraControlGroup);
+  postDelaySlider.getCaptionLabel().align(ControlP5.RIGHT_OUTSIDE, ControlP5.CENTER).setPaddingX(LABEL_OFFSET);
+  
+  cameraY += SLIDER_SPACING + 10;
+  
+  // Manual trigger test button
+  cp5.addButton("testCameraButton")
+    .setPosition(CONTROL_MARGIN, cameraY)
+    .setSize(GROUP_WIDTH - CONTROL_MARGIN*2, BUTTON_HEIGHT)
+    .setLabel("Test Camera Trigger")
+    .setColorBackground(color(0, 120, 100))
+    .moveTo(cameraControlGroup);
+  
   // Create accordion
   accordion = cp5.addAccordion("acc")
     .setPosition(CONTROL_MARGIN, 40)
     .setWidth(GROUP_WIDTH)
     .addItem(patternGroup)
     .addItem(controlGroup)
-    .addItem(hardwareGroup);
+    .addItem(hardwareGroup)
+    .addItem(cameraControlGroup);
   
   // Open just the first panel by default, to avoid overlap
   accordion.open(0);
@@ -1474,6 +1552,22 @@ void sendPatternTypeToHardware() {
   arduinoPort.write(CMD_SET_PATTERN + "" + patternType + "\n");
 }
 
+public void testCameraButton() {
+  if (!hardwareConnected) {
+    println("Cannot test camera: Hardware not connected");
+    return;
+  }
+  
+  // Send camera trigger test command
+  String cameraCommand = CMD_SET_CAMERA + 
+                       "T," + // T for test
+                       cameraEnabled + "," +
+                       cameraPulseWidth;
+  
+  arduinoPort.write(cameraCommand + "\n");
+  println("Camera test trigger sent: pulse width = " + cameraPulseWidth + "ms");
+}
+
 void sendPatternParametersToHardware() {
   if (!hardwareConnected) return;
   
@@ -1511,6 +1605,20 @@ void sendPatternParametersToHardware() {
   
   // Send common parameters
   arduinoPort.write(CMD_SET_SPACING + "" + ledSkip + "\n");
+  
+  // Send camera settings
+  String cameraCommand = CMD_SET_CAMERA + 
+                       "S," +  // S for settings
+                       (cameraEnabled ? "1" : "0") + "," +
+                       cameraPreDelay + "," +
+                       cameraPulseWidth + "," +
+                       cameraPostDelay;
+  
+  arduinoPort.write(cameraCommand + "\n");
+  println("Camera settings sent: enabled=" + cameraEnabled + 
+          ", preDelay=" + cameraPreDelay + 
+          ", pulseWidth=" + cameraPulseWidth + 
+          ", postDelay=" + cameraPostDelay);
 }
 
 void processSerialData() {

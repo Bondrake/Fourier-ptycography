@@ -89,6 +89,7 @@
 #define CMD_VIS_START 'v'          // Command to start visualization mode
 #define CMD_VIS_STOP 'q'           // Command to stop visualization mode
 #define CMD_PATTERN_EXPORT 'p'     // Command to export the full pattern
+#define CMD_SET_CAMERA 'C'         // Command to configure camera settings
 
 #endif // ARDUINO
 

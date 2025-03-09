@@ -35,12 +35,20 @@ const char CMD_STOP_SEQUENCE = 'X';    // Stop sequence
 const char CMD_ENTER_IDLE = 'i';       // Enter idle mode
 const char CMD_EXIT_IDLE = 'a';        // Exit idle mode
 const char CMD_SET_LED = 'L';          // Set specific LED
+const char CMD_SET_CAMERA = 'C';       // Set camera trigger settings
 
 // Status variables
 boolean running = false;
 boolean idleMode = false;
 int currentSequenceIndex = 0;
 int totalSequenceSteps = 0;
+
+// Camera parameters
+boolean cameraEnabled = true;
+int cameraPreDelay = 400;    // Delay in ms before triggering (for auto-exposure)
+int cameraPulseWidth = 100;  // Camera trigger pulse width in ms
+int cameraPostDelay = 1500;  // Delay in ms after triggering (for capture)
+#define PIN_PHOTO_TRIGGER 5  // Pin used to trigger camera shutter
 
 // Current LED state
 int currentLedX = -1;
@@ -139,6 +147,10 @@ void initializePins() {
   pinMode(PIN_LED_G1, OUTPUT);  // Green - upper half
   pinMode(PIN_LED_B0, OUTPUT);  // Blue - lower half
   pinMode(PIN_LED_B1, OUTPUT);  // Blue - upper half
+  
+  // Camera control pin
+  pinMode(PIN_PHOTO_TRIGGER, OUTPUT);
+  digitalWrite(PIN_PHOTO_TRIGGER, LOW);
   
   // Set default states
   digitalWrite(PIN_LED_BL, HIGH);  // Blank display initially
@@ -241,6 +253,63 @@ void processSerialCommands() {
           currentLedY = y;
           currentColor = color;
           setLed(x, y, color);
+        }
+        break;
+        
+      case CMD_SET_CAMERA:
+        // Format: C<type>,<param1>,<param2>,...
+        // Parse the command type (S = settings, T = test)
+        if (value.length() > 0) {
+          char type = value.charAt(0);
+          
+          // Check for S or T commands and comma separator
+          if ((type == 'S' || type == 'T') && value.indexOf(',') > 0) {
+            // Extract the parameters
+            value = value.substring(2);  // Skip type and comma
+            
+            // For S command - Settings: S,<enabled>,<preDelay>,<pulseWidth>,<postDelay>
+            if (type == 'S') {
+              int commaIndex1 = value.indexOf(',');
+              int commaIndex2 = value.indexOf(',', commaIndex1 + 1);
+              int commaIndex3 = value.indexOf(',', commaIndex2 + 1);
+              
+              if (commaIndex1 > 0 && commaIndex2 > commaIndex1 && commaIndex3 > commaIndex2) {
+                // Parse all four parameters
+                boolean newEnabled = value.substring(0, commaIndex1).toInt() != 0;
+                int newPreDelay = value.substring(commaIndex1 + 1, commaIndex2).toInt();
+                int newPulseWidth = value.substring(commaIndex2 + 1, commaIndex3).toInt();
+                int newPostDelay = value.substring(commaIndex3 + 1).toInt();
+                
+                // Update camera settings
+                cameraEnabled = newEnabled;
+                cameraPreDelay = newPreDelay;
+                cameraPulseWidth = newPulseWidth;
+                cameraPostDelay = newPostDelay;
+                
+                Serial.println("Camera settings updated");
+              }
+            }
+            
+            // For T command - Test: T,<enabled>,<pulseWidth>
+            else if (type == 'T') {
+              int commaIndex = value.indexOf(',');
+              
+              if (commaIndex > 0) {
+                // Parse the parameters
+                boolean testEnabled = value.substring(0, commaIndex).toInt() != 0;
+                int testPulseWidth = value.substring(commaIndex + 1).toInt();
+                
+                // Only proceed with test if camera is enabled
+                if (testEnabled) {
+                  Serial.println("Testing camera trigger...");
+                  triggerCamera(testPulseWidth);
+                  Serial.println("Camera test completed");
+                } else {
+                  Serial.println("Camera test skipped (camera disabled)");
+                }
+              }
+            }
+          }
         }
         break;
     }
@@ -416,6 +485,11 @@ void updateSequence() {
   // Send update to Processing
   sendLedUpdate();
   
+  // Trigger camera if enabled
+  if (cameraEnabled) {
+    triggerCamera();
+  }
+  
   // Increment sequence index
   currentSequenceIndex++;
 }
@@ -487,7 +561,7 @@ void sendLedUpdate() {
 
 void sendStatus() {
   // Send status update to Processing
-  // Format: STATUS,running,idle,progress
+  // Format: STATUS,running,idle,progress,cameraEnabled
   Serial.print("STATUS,");
   Serial.print(running ? "1" : "0");
   Serial.print(",");
@@ -499,5 +573,42 @@ void sendStatus() {
   if (sequenceLength > 0) {
     progress = (float)currentSequenceIndex / sequenceLength;
   }
-  Serial.println(progress);
+  Serial.print(progress);
+  
+  // Add camera status
+  Serial.print(",");
+  Serial.println(cameraEnabled ? "1" : "0");
+}
+
+/**
+ * Trigger the camera shutter
+ * 
+ * @param customPulseWidth Optional custom pulse width (use default if <= 0)
+ * @return True if successful, false on error
+ */
+bool triggerCamera(int customPulseWidth = -1) {
+  // Skip if camera triggering is disabled
+  if (!cameraEnabled) return true;
+  
+  // Use custom or default pulse width
+  int pulseWidth = (customPulseWidth > 0) ? customPulseWidth : cameraPulseWidth;
+  
+  // Pre-trigger delay for camera auto-exposure to adjust
+  if (cameraPreDelay > 0) {
+    delay(cameraPreDelay);
+  }
+  
+  // Set trigger pin high
+  digitalWrite(PIN_PHOTO_TRIGGER, HIGH);
+  
+  // Maintain pulse width then set low
+  delay(pulseWidth);
+  digitalWrite(PIN_PHOTO_TRIGGER, LOW);
+  
+  // Post-trigger delay to ensure image is captured
+  if (cameraPostDelay > 0) {
+    delay(cameraPostDelay);
+  }
+  
+  return true;
 }

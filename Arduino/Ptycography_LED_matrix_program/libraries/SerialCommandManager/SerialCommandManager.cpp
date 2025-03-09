@@ -7,6 +7,7 @@
 #include "SerialCommandManager.h"
 #include "../IdleManager/IdleManager.h"
 #include "../VisualizationManager/VisualizationManager.h"
+#include "../CameraManager/CameraManager.h"
 
 /**
  * Constructor
@@ -17,9 +18,11 @@
  * @param serialRetries Number of retries for serial operations
  */
 SerialCommandManager::SerialCommandManager(IdleManager* idleManager, VisualizationManager* visManager,
+                                          CameraManager* cameraManager,
                                           unsigned long serialTimeout, int serialRetries) {
   _idleManager = idleManager;
   _visManager = visManager;
+  _cameraManager = cameraManager;
   _serialTimeout = serialTimeout;
   _serialRetries = serialRetries;
   _serialReady = false;
@@ -64,6 +67,10 @@ void SerialCommandManager::processCommands() {
       
     case CMD_PATTERN_EXPORT:
       handlePatternExportCommand();
+      break;
+      
+    case CMD_SET_CAMERA:
+      handleCameraCommand();
       break;
       
     default:
@@ -159,6 +166,102 @@ void SerialCommandManager::handleVisStopCommand() {
 void SerialCommandManager::handlePatternExportCommand() {
   safePrint("Exporting LED pattern...");
   // Pattern export is handled by the main sketch
+}
+
+/**
+ * Handle camera configuration command
+ * 
+ * Format: C<type>,<param1>,<param2>,...
+ * Types:
+ *   S = Settings: S,<enabled>,<preDelay>,<pulseWidth>,<postDelay>
+ *   T = Test: T,<enabled>,<pulseWidth>
+ */
+void SerialCommandManager::handleCameraCommand() {
+  if (_cameraManager == nullptr) {
+    safePrint("ERROR: No camera manager available");
+    return;
+  }
+  
+  // Wait for more data
+  delay(10);
+  if (!Serial.available()) return;
+  
+  // Read command type
+  char type = Serial.read();
+  if (type != 'S' && type != 'T') {
+    safePrint("ERROR: Invalid camera command type");
+    return;
+  }
+  
+  // Read comma separator
+  if (!Serial.available() || Serial.read() != ',') {
+    safePrint("ERROR: Invalid camera command format");
+    return;
+  }
+  
+  // Process settings command
+  if (type == 'S') {
+    int enabled = Serial.parseInt();
+    
+    // Check for comma after enabled parameter
+    if (!Serial.available() || Serial.read() != ',') {
+      safePrint("ERROR: Invalid camera settings format");
+      return;
+    }
+    
+    int preDelay = Serial.parseInt();
+    
+    // Check for comma after preDelay parameter
+    if (!Serial.available() || Serial.read() != ',') {
+      safePrint("ERROR: Invalid camera settings format");
+      return;
+    }
+    
+    int pulseWidth = Serial.parseInt();
+    
+    // Check for comma after pulseWidth parameter
+    if (!Serial.available() || Serial.read() != ',') {
+      safePrint("ERROR: Invalid camera settings format");
+      return;
+    }
+    
+    int postDelay = Serial.parseInt();
+    
+    // Apply the settings
+    _cameraManager->setEnabled(enabled != 0);
+    _cameraManager->setPreDelay(preDelay);
+    _cameraManager->setPulseWidth(pulseWidth);
+    _cameraManager->setPostDelay(postDelay);
+    
+    safePrint("Camera settings updated");
+  }
+  
+  // Process test command
+  else if (type == 'T') {
+    int enabled = Serial.parseInt();
+    
+    // Check for comma after enabled parameter
+    if (!Serial.available() || Serial.read() != ',') {
+      safePrint("ERROR: Invalid camera test format");
+      return;
+    }
+    
+    int pulseWidth = Serial.parseInt();
+    
+    // Only proceed with test if camera is enabled
+    if (enabled != 0) {
+      safePrint("Testing camera trigger...");
+      bool success = _cameraManager->testTrigger(pulseWidth);
+      
+      if (success) {
+        safePrint("Camera test completed successfully");
+      } else {
+        safePrint("ERROR: Camera test failed");
+      }
+    } else {
+      safePrint("Camera test skipped (camera disabled)");
+    }
+  }
 }
 
 /**
