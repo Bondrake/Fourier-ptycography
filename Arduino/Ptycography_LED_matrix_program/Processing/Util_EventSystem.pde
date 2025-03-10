@@ -18,6 +18,9 @@ static final class EventType {
   public static final String HARDWARE_CONNECTED = "hardware_connected";
   public static final String HARDWARE_DISCONNECTED = "hardware_disconnected";
   public static final String SERIAL_DATA_RECEIVED = "serial_data_received";
+  public static final String SERIAL_PORTS_CHANGED = "serial_ports_changed";
+  public static final String SERIAL_CONNECTED = "serial_connected";
+  public static final String SERIAL_DISCONNECTED = "serial_disconnected";
   
   // UI events
   public static final String REFRESH_UI = "refresh_ui";
@@ -87,21 +90,29 @@ interface EventHandler {
 /**
  * Event bus for publishing and subscribing to events
  */
+// Singleton instance - must be outside the class for Processing compatibility
+EventBus eventBusInstance = null;
+
+// Global function to get EventBus instance (Processing compatibility)
+EventBus getEventBus() {
+  if (eventBusInstance == null) {
+    eventBusInstance = new EventBus();
+  }
+  return eventBusInstance;
+}
+
 class EventBus {
   private HashMap<String, ArrayList<EventHandler>> subscribers;
-  private static EventBus instance = null;
   
   // Private constructor (singleton pattern)
   private EventBus() {
     subscribers = new HashMap<String, ArrayList<EventHandler>>();
   }
   
-  // Get singleton instance
-  public static EventBus getInstance() {
-    if (instance == null) {
-      instance = new EventBus();
-    }
-    return instance;
+  // Instance getter (non-static for Processing compatibility)
+  // Use the global getEventBus() function instead
+  public EventBus getInstance() {
+    return getEventBus();
   }
   
   // Subscribe to an event
@@ -170,22 +181,22 @@ class EventBus {
 class EventDispatcher implements EventHandler {
   // Register for events with the bus
   protected void registerEvent(String eventType) {
-    EventBus.getInstance().subscribe(eventType, this);
+    getEventBus().subscribe(eventType, this);
   }
   
   // Unregister from events with the bus
   protected void unregisterEvent(String eventType) {
-    EventBus.getInstance().unsubscribe(eventType, this);
+    getEventBus().unsubscribe(eventType, this);
   }
   
   // Publish an event
   protected void publishEvent(String eventType) {
-    EventBus.getInstance().publish(eventType);
+    getEventBus().publish(eventType);
   }
   
   // Publish an event with data
   protected void publishEvent(String eventType, EventData data) {
-    EventBus.getInstance().publish(eventType, data);
+    getEventBus().publish(eventType, data);
   }
   
   // Handle incoming events (to be overridden by subclasses)

@@ -9,15 +9,13 @@
  */
 
 class SystemStateModel extends EventDispatcher {
-  // State enums
-  public enum RunState {
-    STOPPED,
-    RUNNING,
-    PAUSED
-  }
+  // State constants
+  public static final int STOPPED = 0;
+  public static final int RUNNING = 1;
+  public static final int PAUSED = 2;
   
   // System states
-  private RunState runState = RunState.STOPPED;
+  private int runState = STOPPED;
   private boolean idleMode = false;
   private boolean simulationMode = true;  // Default to simulation mode
   private boolean hardwareConnected = false;
@@ -46,12 +44,12 @@ class SystemStateModel extends EventDispatcher {
    * Start or resume the illumination sequence
    */
   public void startSequence() {
-    if (runState == RunState.STOPPED) {
+    if (runState == STOPPED) {
       // Start from beginning
       sequenceIndex = 0;
     }
     
-    runState = RunState.RUNNING;
+    runState = RUNNING;
     idleMode = false;
     publishEvent(EventType.STATE_CHANGED);
   }
@@ -60,8 +58,8 @@ class SystemStateModel extends EventDispatcher {
    * Pause the illumination sequence
    */
   public void pauseSequence() {
-    if (runState == RunState.RUNNING) {
-      runState = RunState.PAUSED;
+    if (runState == RUNNING) {
+      runState = PAUSED;
       publishEvent(EventType.STATE_CHANGED);
     }
   }
@@ -70,7 +68,7 @@ class SystemStateModel extends EventDispatcher {
    * Stop the illumination sequence
    */
   public void stopSequence() {
-    runState = RunState.STOPPED;
+    runState = STOPPED;
     sequenceIndex = 0;
     currentLedX = -1;
     currentLedY = -1;
@@ -82,7 +80,7 @@ class SystemStateModel extends EventDispatcher {
    */
   public void enterIdleMode() {
     idleMode = true;
-    runState = RunState.STOPPED;
+    runState = STOPPED;
     lastBlinkTime = millis();
     currentLedX = -1;
     currentLedY = -1;
@@ -106,7 +104,7 @@ class SystemStateModel extends EventDispatcher {
     boolean changed = false;
     
     // Update run state
-    RunState newRunState = running ? RunState.RUNNING : RunState.STOPPED;
+    int newRunState = running ? RUNNING : STOPPED;
     if (runState != newRunState) {
       runState = newRunState;
       changed = true;
@@ -137,13 +135,13 @@ class SystemStateModel extends EventDispatcher {
   /**
    * Update current LED position
    */
-  public void updateCurrentLed(int x, int y, int color) {
+  public void updateCurrentLed(int x, int y, int ledColor) {
     boolean changed = false;
     
-    if (currentLedX != x || currentLedY != y || currentColor != color) {
+    if (currentLedX != x || currentLedY != y || currentColor != ledColor) {
       currentLedX = x;
       currentLedY = y;
-      currentColor = color;
+      currentColor = ledColor;
       changed = true;
     }
     
@@ -175,7 +173,7 @@ class SystemStateModel extends EventDispatcher {
         hardwareConnected = false;
       }
       
-      notifyObservers();
+      publishEvent(EventType.STATE_CHANGED);
     }
   }
   
@@ -185,7 +183,7 @@ class SystemStateModel extends EventDispatcher {
   public void setHardwareConnected(boolean connected) {
     if (hardwareConnected != connected) {
       hardwareConnected = connected;
-      notifyObservers();
+      publishEvent(EventType.STATE_CHANGED);
     }
   }
   
@@ -212,16 +210,16 @@ class SystemStateModel extends EventDispatcher {
   
   // Getters
   
-  public RunState getRunState() {
+  public int getRunState() {
     return runState;
   }
   
   public boolean isRunning() {
-    return runState == RunState.RUNNING;
+    return runState == RUNNING;
   }
   
   public boolean isPaused() {
-    return runState == RunState.PAUSED;
+    return runState == PAUSED;
   }
   
   public boolean isIdle() {

@@ -1,5 +1,7 @@
 # Ptycography LED Matrix Program Refactoring Guide
 
+> **Historical Note (April 2025)**: This document describes the initial Arduino code refactoring, which has been superseded by the central controller architecture. For current documentation, see `README.md` and `Processing/README.md`. This document is kept for historical reference.
+
 This document explains the refactoring performed on the Ptycography LED Matrix Control Program to improve its design, maintainability, and extensibility.
 
 ## Refactoring Goals
@@ -130,3 +132,14 @@ The refactored structure facilitates these future improvements:
 3. **Command Interface**: Enhance the command interface with more options
 4. **Additional Patterns**: Implement more illumination patterns
 5. **Hardware Abstraction**: Further abstract hardware specifics for portability
+
+## Evolution to Central Controller Architecture
+
+Following this initial refactoring, the project evolved to adopt a central controller architecture:
+
+1. **Processing Application**: A feature-rich Processing application became the primary interface
+2. **Arduino as Hardware Interface**: The Arduino code was simplified to act as a hardware interface for the Processing controller
+3. **Modularity in Processing**: The modularity concepts from this refactoring were applied to the Processing code
+4. **Flat Directory Structure**: The Processing code was organized with a flat directory structure and naming prefixes
+
+For details on the current architecture, see `CENTRAL_CONTROLLER.md` and `ARCHITECTURE.md`.

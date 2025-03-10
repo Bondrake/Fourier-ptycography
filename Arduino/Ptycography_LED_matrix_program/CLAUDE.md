@@ -12,33 +12,32 @@
   - 'a' - Manually exit idle mode
   - Any other character will also exit idle mode
 
-## Visualization System
-The program includes a dual-mode visualization system that allows you to see the LED matrix state in real-time without physical hardware.
+## Control System
+The system uses a central controller architecture with a Processing application as the primary interface.
 
-### Enabling Visualization Mode
-1. Set `#define VISUALIZATION_MODE 1` in the Arduino code
-2. Upload the code to the Arduino (or use a simulator)
-3. Use the Processing sketch `LED_Matrix_Visualizer.pde` (in the Processing folder) to view the matrix
+### Central Controller Features
+1. Open and run the Processing sketch `Processing/CentralController.pde`
+2. The application provides visualization and control in one interface
+3. Use the UI controls to adjust pattern parameters and control the sequence
 
-### Visualization Commands
-- 'v' - Start visualization mode (sends LED pattern and real-time updates to visualizer)
-- 'q' - Stop visualization mode
-- 'p' - Export the full LED pattern to the visualizer
-
-### Processing Visualizer Features
-- Shows the 64x64 LED matrix as a grid of colored squares
-- Works in two modes:
-  - Simulation Mode: Runs the LED pattern algorithm within Processing
-  - Hardware Mode: Connects to Arduino via serial to show real-time LED states
-- Toggle between modes with 's' key
-- Toggle full pattern/center-only with 'p' key
-- Pause/resume with space bar
+### Simulation Mode
+- By default, the system runs in simulation mode (no hardware required)
+- Shows a real-time visualization of the LED matrix
+- Allows testing patterns and sequences without physical hardware
 - Toggle grid lines with 'g' key
+- Zoom in/out with '+' and '-' keys
+
+### Hardware Mode
+1. Upload `Processing/LED_Matrix_Hardware_Interface.ino` to your Arduino/Teensy
+2. Connect the Arduino via USB
+3. In the Processing app, toggle "Simulation Mode" off in the Hardware panel
+4. Select the Arduino's serial port and click "Connect to Hardware"
+5. Once connected, all commands will be sent to the physical hardware
 
 ### Validation Without Hardware
-1. Run the Processing sketch in Simulation Mode to validate the LED pattern algorithm
-2. Run Arduino code in a simulator like Wokwi or Tinkercad with visualization enabled
-3. Connect the Processing sketch to the simulator's serial port
+1. Run the Processing application in Simulation Mode
+2. Test different patterns and configurations in the UI
+3. For hardware testing, you can use a simulator like Wokwi or Tinkercad
 
 ## Code Style Guidelines
 - Constants: Use `#define NAME VALUE` for program configuration
@@ -66,3 +65,13 @@ The program includes a dual-mode visualization system that allows you to see the
 - Display Buffer Dirty Flag: Tracks when updates are needed to avoid redundant refreshes
 - Pin State Optimization: Uses single pin settings for multiple column clocks
 - Interrupt Optimization: Skips LED updates in idle mode to reduce CPU usage
+
+## Processing Code Organization
+
+The Processing code follows a flat file structure with consistent naming prefixes:
+
+- `Model_*.pde` - Data models (PatternModel, SystemStateModel, CameraModel)
+- `View_*.pde` - UI components (MatrixView, StatusPanelView)
+- `Controller_*.pde` - Application logic (AppController)
+- `Util_*.pde` - Utilities (ConfigManager, EventSystem, SerialManager, UIManager)
+- `CentralController.pde` - Main application entry point

@@ -4,7 +4,7 @@ This repository contains a comprehensive control system for a 64x64 RGB LED matr
 
 ## Central Controller Architecture
 
-This branch (`processing-central-control`) implements a central controller architecture where:
+This branch (`modularization`) implements a central controller architecture where:
 
 1. **Processing is the primary control interface**
    - A comprehensive Processing application provides all control functions
@@ -22,7 +22,7 @@ This approach eliminates the need to reprogram the Arduino when changing pattern
 
 ### Processing Controller
 
-The `Processing/CentralController/CentralController.pde` sketch provides:
+The Processing sketch in the `Processing/` directory provides:
 
 - Complete UI for controlling all aspects of the system
 - Pattern selection (concentric rings, center only, spiral, grid)
@@ -31,9 +31,30 @@ The `Processing/CentralController/CentralController.pde` sketch provides:
 - Power management (idle mode)
 - Hardware connection management
 
+> **Note**: The Processing code has been restructured to use a flat file organization with prefixes (Model_, View_, Controller_, Util_) as required by Processing.
+
+### Processing Code Organization
+
+The Processing code follows these naming conventions for clarity:
+
+- `Model_*.pde` - Data models (PatternModel, SystemStateModel, CameraModel)
+- `View_*.pde` - UI components (MatrixView, StatusPanelView)
+- `Controller_*.pde` - Application logic (AppController)
+- `Util_*.pde` - Utilities (ConfigManager, EventSystem, SerialManager, UIManager)
+- `CentralController.pde` - Main application entry point
+
+### Processing Development Guidelines
+
+When developing for Processing, remember:
+
+1. Keep all code in the flat directory structure (no subdirectories)
+2. Always use `int` instead of `color` for color variables and parameters
+3. All enums inside classes must be declared as `static`
+4. Use the event system for communication between components
+
 ### Arduino Hardware Interface
 
-The `Processing/CentralController/LED_Matrix_Hardware_Interface.ino` sketch:
+The `Processing/LED_Matrix_Hardware_Interface.ino` sketch:
 
 - Receives commands from Processing via serial
 - Controls the physical LED matrix hardware
@@ -44,7 +65,7 @@ The `Processing/CentralController/LED_Matrix_Hardware_Interface.ino` sketch:
 ## Setup Instructions
 
 1. **Hardware Interface Setup**:
-   - Upload `Processing/CentralController/LED_Matrix_Hardware_Interface.ino` to your Arduino/Teensy
+   - Upload `Processing/LED_Matrix_Hardware_Interface.ino` to your Arduino/Teensy
    - This only needs to be done once
 
 2. **Processing Controller Setup**:
@@ -53,8 +74,7 @@ The `Processing/CentralController/LED_Matrix_Hardware_Interface.ino` sketch:
      - Sketch > Import Library > Add Library
      - Search for "ControlP5"
      - Click "Install"
-   - See `Processing/CentralController/LIBRARY_INSTALLATION.md` for detailed library installation instructions if needed
-   - Open `Processing/CentralController/CentralController.pde`
+   - Open `Processing/CentralController.pde`
    - Run the sketch
 
 3. **Hardware Connection**:
@@ -72,11 +92,11 @@ The central controller provides a comprehensive interface for:
 - **Power Management**: Toggle idle mode with heartbeat functionality
 - **Visualization**: See the LED matrix state in real-time
 
-For detailed usage instructions, see `Processing/CentralController/README.md`.
+For detailed usage instructions, see `Processing/README.md`.
 
 ## Focus on Central Control
 
-This branch is focused exclusively on the central controller architecture:
+The `modularization` branch focuses exclusively on the central controller architecture:
 
 - **Single Control Interface**: The Processing central controller is the only interface needed
 - **Streamlined Approach**: All other visualizers and tools have been removed
@@ -84,9 +104,23 @@ This branch is focused exclusively on the central controller architecture:
 
 ## Documentation
 
-- **CENTRAL_CONTROLLER.md**: Explains the central controller architecture
-- **BRANCH_CLEANUP_PLAN.md**: Documents the branch organization
-- **Processing/CentralController/README.md**: Detailed controller usage instructions
+The project documentation has been consolidated for better clarity:
+
+- **README.md** (this file) - Main project overview and getting started guide
+- **ARCHITECTURE.md** - Comprehensive architecture documentation
+- **TEST.md** - Complete testing documentation
+- **CLAUDE.md** - Development guide for AI assistant
+- **Processing/README.md** - Processing code documentation
+- **DOCUMENTATION_UPDATE.md** - Overview of documentation organization
+
+### Documentation Hierarchy
+
+- Start with this README.md for an overview
+- Reference ARCHITECTURE.md for design details
+- Use TEST.md for testing information
+- See Processing/README.md for Processing-specific implementation
+
+> **Note**: Historical documentation has been moved to the `docs-archive` directory. See `DOCUMENTATION_UPDATE.md` for details.
 
 ## Power Management Features
 

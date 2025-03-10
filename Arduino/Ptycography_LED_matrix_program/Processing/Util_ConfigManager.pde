@@ -7,10 +7,20 @@
  * This would be reimplemented using Rust in a Tauri migration.
  */
 
+// Singleton instance - must be outside the class for Processing compatibility
+ConfigManager configManagerInstance = null;
+
+// Global function to get ConfigManager instance (Processing compatibility)
+ConfigManager getConfigManager() {
+  if (configManagerInstance == null) {
+    configManagerInstance = new ConfigManager();
+  }
+  return configManagerInstance;
+}
+
 class ConfigManager {
   private JSONObject config;
   private String configFilePath;
-  private static ConfigManager instance = null;
   
   // Default configuration values
   private static final int DEFAULT_WINDOW_WIDTH = 1280;
@@ -28,24 +38,52 @@ class ConfigManager {
   
   // Private constructor (singleton pattern)
   private ConfigManager() {
-    config = new JSONObject();
-    configFilePath = dataPath("config.json");
-    
-    // Load existing configuration or create a new one
-    if (fileExists(configFilePath)) {
-      loadFromFile();
-    } else {
+    try {
+      println("Initializing ConfigManager");
+      
+      config = new JSONObject();
+      configFilePath = dataPath("config.json");
+      
+      // Create data directory if it doesn't exist
+      File dataDir = new File(dataPath(""));
+      if (!dataDir.exists()) {
+        dataDir.mkdirs();
+        println("Created data directory: " + dataDir.getAbsolutePath());
+      }
+      
+      // Load existing configuration or create a new one
+      if (fileExists(configFilePath)) {
+        println("Found existing config file");
+        // Use a direct load approach without events during initialization
+        try {
+          config = loadJSONObject(configFilePath);
+          validateConfig();
+        } catch (Exception e) {
+          println("Error loading config, using defaults: " + e.getMessage());
+          setDefaults();
+        }
+      } else {
+        println("No config file found, creating defaults");
+        setDefaults();
+        saveToFile();
+      }
+      
+      println("ConfigManager initialized successfully");
+    } catch (Exception e) {
+      println("Error in ConfigManager constructor: " + e.getMessage());
+      e.printStackTrace();
+      // Initialize with empty config to prevent further errors
+      config = new JSONObject();
       setDefaults();
-      saveToFile();
     }
   }
   
-  // Get singleton instance
-  public static ConfigManager getInstance() {
-    if (instance == null) {
-      instance = new ConfigManager();
+  // Get singleton instance (non-static for Processing compatibility)
+  public ConfigManager getInstance() {
+    if (configManagerInstance == null) {
+      configManagerInstance = new ConfigManager();
     }
-    return instance;
+    return configManagerInstance;
   }
   
   // Set default configuration values
@@ -80,38 +118,88 @@ class ConfigManager {
     config.setJSONObject("hardware", hardwareConfig);
   }
   
+  // Flag to prevent recursive loading
+  private boolean isLoading = false;
+  
   // Load configuration from file
   public boolean loadFromFile() {
+    // Prevent recursive calls
+    if (isLoading) {
+      println("WARNING: Recursive call to loadFromFile() prevented");
+      return false;
+    }
+    
+    isLoading = true;
+    
     try {
+      println("Loading configuration from: " + configFilePath);
+      
+      // Check if file exists before trying to load it
+      if (!fileExists(configFilePath)) {
+        println("Config file not found, using defaults");
+        setDefaults();
+        isLoading = false;
+        return false;
+      }
+      
+      // Load the config file
       config = loadJSONObject(configFilePath);
       
       // Validate and ensure all required fields exist
       validateConfig();
       
-      // Notify that configuration has been loaded
-      EventBus.getInstance().publish(EventType.CONFIG_LOADED);
+      // Notify that configuration has been loaded - safer without event
+      // Uncomment only if needed: getEventBus().publish(EventType.CONFIG_LOADED);
+      println("Configuration loaded successfully");
       
+      isLoading = false;
       return true;
     } catch (Exception e) {
       println("Error loading configuration: " + e.getMessage());
+      e.printStackTrace();
       
       // Fall back to defaults
       setDefaults();
+      isLoading = false;
       return false;
     }
   }
   
+  // Flag to prevent recursive saving
+  private boolean isSaving = false;
+  
   // Save configuration to file
   public boolean saveToFile() {
+    // Prevent recursive calls
+    if (isSaving) {
+      println("WARNING: Recursive call to saveToFile() prevented");
+      return false;
+    }
+    
+    isSaving = true;
+    
     try {
+      println("Saving configuration to: " + configFilePath);
+      
+      // Make sure data directory exists
+      File dataDir = new File(dataPath(""));
+      if (!dataDir.exists()) {
+        dataDir.mkdirs();
+      }
+      
+      // Save the config file
       saveJSONObject(config, configFilePath);
       
-      // Notify that configuration has been saved
-      EventBus.getInstance().publish(EventType.CONFIG_SAVED);
+      // Notify that configuration has been saved - safer without event
+      // Uncomment only if needed: getEventBus().publish(EventType.CONFIG_SAVED);
+      println("Configuration saved successfully");
       
+      isSaving = false;
       return true;
     } catch (Exception e) {
       println("Error saving configuration: " + e.getMessage());
+      e.printStackTrace();
+      isSaving = false;
       return false;
     }
   }

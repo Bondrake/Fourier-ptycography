@@ -7,6 +7,9 @@
  */
 
 class AppController extends EventDispatcher implements SerialEventCallback {
+  // Parent application
+  private PApplet app;
+  
   // Models
   private PatternModel patternModel;
   private SystemStateModel stateModel;
@@ -26,23 +29,11 @@ class AppController extends EventDispatcher implements SerialEventCallback {
    * Constructor
    */
   public AppController(PApplet app) {
-    // Create models
-    patternModel = new PatternModel(64, 64);
-    stateModel = new SystemStateModel();
-    cameraModel = new CameraModel();
+    // Store the PApplet reference
+    this.app = app;
     
-    // Create hardware manager
-    serialManager = new SerialManager(stateModel, patternModel, cameraModel);
-    serialManager.setCallback(this);
-    
-    // Create UI Controls
+    // Initialize ControlP5 for UI controls if needed
     cp5 = new ControlP5(app);
-    
-    // Create views
-    matrixView = new MatrixView(patternModel, stateModel, cameraModel, 
-                               330, 50, 8);
-    statusView = new StatusPanelView(patternModel, stateModel, cameraModel,
-                                    0, 50, 330);
     
     // Register for events
     registerEvent(EventType.PATTERN_CHANGED);
@@ -50,18 +41,45 @@ class AppController extends EventDispatcher implements SerialEventCallback {
     registerEvent(EventType.CAMERA_STATUS_CHANGED);
     registerEvent(EventType.CONFIG_LOADED);
     
+    // Note: Models, views and managers are now initialized in the main sketch
+    // and provided via setter methods
+  }
+  
+  /**
+   * Initialize after all components are set
+   */
+  public void initialize() {
+    // Validate that all required components are set
+    if (patternModel == null || stateModel == null || cameraModel == null) {
+      println("ERROR: Essential models not set in AppController");
+      return;
+    }
+    
+    // Set up callback for serial events
+    if (serialManager != null) {
+      serialManager.setCallback(this);
+    } else {
+      println("WARNING: Serial manager not set in AppController");
+    }
+    
+    if (matrixView == null || statusView == null) {
+      println("WARNING: Views not set in AppController");
+    }
+    
     // Load config and apply settings
     loadConfigSettings();
     
-    // Configure UI
-    setupUI();
+    // Configure UI if needed
+    // setupUI();
+    
+    println("AppController initialized successfully");
   }
   
   /**
    * Load and apply settings from configuration
    */
   private void loadConfigSettings() {
-    ConfigManager config = ConfigManager.getInstance();
+    ConfigManager config = getConfigManager();
     
     // Apply pattern settings
     JSONObject patternConfig = config.getPatternConfig();
@@ -270,8 +288,9 @@ class AppController extends EventDispatcher implements SerialEventCallback {
   
   /**
    * Trigger idle heartbeat
+   * This is called from the main sketch when stateModel.checkIdleHeartbeat() is true
    */
-  private void triggerIdleHeartbeat() {
+  public void triggerIdleHeartbeat() {
     // In simulation mode, update the state directly
     if (stateModel.isSimulationMode()) {
       // Simulate heartbeat blink
@@ -321,8 +340,8 @@ class AppController extends EventDispatcher implements SerialEventCallback {
         
       case EventType.PATTERN_CHANGED:
         // Pattern was changed, update configuration and potentially send to hardware
-        ConfigManager.getInstance().updatePatternConfig(patternModel);
-        ConfigManager.getInstance().saveToFile();
+        getConfigManager().updatePatternConfig(patternModel);
+        getConfigManager().saveToFile();
         
         if (!stateModel.isSimulationMode() && serialManager.isConnected()) {
           serialManager.sendPatternParameters();
@@ -331,8 +350,8 @@ class AppController extends EventDispatcher implements SerialEventCallback {
         
       case EventType.CAMERA_STATUS_CHANGED:
         // Camera status was changed, update configuration
-        ConfigManager.getInstance().updateCameraConfig(cameraModel);
-        ConfigManager.getInstance().saveToFile();
+        getConfigManager().updateCameraConfig(cameraModel);
+        getConfigManager().saveToFile();
         break;
         
       case EventType.STATE_CHANGED:
@@ -346,7 +365,7 @@ class AppController extends EventDispatcher implements SerialEventCallback {
    */
   public void saveSettings() {
     // Update all configuration from current models
-    ConfigManager config = ConfigManager.getInstance();
+    ConfigManager config = getConfigManager();
     
     // Update pattern config
     config.updatePatternConfig(patternModel);
@@ -367,6 +386,37 @@ class AppController extends EventDispatcher implements SerialEventCallback {
    */
   public String[] getSerialPorts() {
     return serialManager.getAvailablePorts();
+  }
+  
+  /**
+   * Setter methods for component references
+   */
+  public void setPatternModel(PatternModel model) {
+    this.patternModel = model;
+  }
+  
+  public void setStateModel(SystemStateModel model) {
+    this.stateModel = model;
+  }
+  
+  public void setCameraModel(CameraModel model) {
+    this.cameraModel = model;
+  }
+  
+  public void setMatrixView(MatrixView view) {
+    this.matrixView = view;
+  }
+  
+  public void setStatusView(StatusPanelView view) {
+    this.statusView = view;
+  }
+  
+  public void setSerialManager(SerialManager manager) {
+    this.serialManager = manager;
+  }
+  
+  public void setUIManager(UIManager manager) {
+    // Store UI manager reference if needed
   }
   
   /**

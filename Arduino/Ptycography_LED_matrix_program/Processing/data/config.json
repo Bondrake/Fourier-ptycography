@@ -1,0 +1,19 @@
+{
+  "windowHeight": 800,
+  "pattern": {
+    "outerRadius": 31,
+    "middleRadius": 24,
+    "ledSkip": 2,
+    "patternType": 0,
+    "innerRadius": 16
+  },
+  "camera": {
+    "preDelay": 400,
+    "pulseWidth": 100,
+    "postDelay": 1500,
+    "enabled": true
+  },
+  "windowWidth": 1280,
+  "simulationMode": true,
+  "hardware": {"lastPort": ""}
+}

@@ -3,10 +3,10 @@
  * 
  * Responsible for visualizing system status information.
  * Displays operational mode, camera status, LED status, etc.
- * Implements observer interfaces to update on model changes.
+ * Uses the event system for updates.
  */
 
-class StatusPanelView implements PatternObserver, StateObserver, CameraObserver {
+class StatusPanelView extends EventDispatcher {
   // Models
   private PatternModel patternModel;
   private SystemStateModel stateModel;
@@ -27,7 +27,7 @@ class StatusPanelView implements PatternObserver, StateObserver, CameraObserver 
    * Constructor with models and position
    */
   public StatusPanelView(PatternModel patternModel, SystemStateModel stateModel, CameraModel cameraModel,
-                         int panelX, int panelY, int panelWidth) {
+                       int panelX, int panelY, int panelWidth) {
     this.patternModel = patternModel;
     this.stateModel = stateModel;
     this.cameraModel = cameraModel;
@@ -35,31 +35,18 @@ class StatusPanelView implements PatternObserver, StateObserver, CameraObserver 
     this.panelY = panelY;
     this.INFO_PANEL_WIDTH = panelWidth;
     
-    // Register as observer
-    patternModel.addObserver(this);
-    stateModel.addObserver(this);
-    cameraModel.addObserver(this);
+    // Register for events
+    registerEvent(EventType.PATTERN_CHANGED);
+    registerEvent(EventType.STATE_CHANGED);
+    registerEvent(EventType.CAMERA_STATUS_CHANGED);
   }
   
   /**
-   * Observer callback for pattern changes
+   * Handle events
    */
-  public void onPatternChanged() {
-    // Will be reflected in next draw
-  }
-  
-  /**
-   * Observer callback for state changes
-   */
-  public void onStateChanged() {
-    // Will be reflected in next draw
-  }
-  
-  /**
-   * Observer callback for camera status changes
-   */
-  public void onCameraStatusChanged() {
-    // Will be reflected in next draw
+  @Override
+  public void handleEvent(String eventType, EventData data) {
+    // The view will be updated in the draw method
   }
   
   /**
@@ -283,7 +270,7 @@ class StatusPanelView implements PatternObserver, StateObserver, CameraObserver 
   /**
    * Helper method to draw a field with label and value and custom color
    */
-  private void drawField(String label, String value, int yPos, color valueColor) {
+  private void drawField(String label, String value, int yPos, int valueColor) {
     fill(200);
     textAlign(LEFT, TOP);
     textSize(13);

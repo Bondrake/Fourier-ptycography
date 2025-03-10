@@ -3,10 +3,10 @@
  * 
  * Responsible for visualizing the LED matrix.
  * Draws the LED grid, coordinates, and current LED state.
- * Implements both PatternObserver and StateObserver interfaces to update on changes.
+ * Uses the event system to update on changes.
  */
 
-class MatrixView implements PatternObserver, StateObserver, CameraObserver {
+class MatrixView extends EventDispatcher {
   // Matrix dimensions
   private final int MATRIX_WIDTH;
   private final int MATRIX_HEIGHT;
@@ -26,15 +26,15 @@ class MatrixView implements PatternObserver, StateObserver, CameraObserver {
   private boolean showGrid = true;
   
   // Colors
-  private final color OFF_COLOR = color(20);
-  private final color RED_COLOR = color(255, 0, 0);
-  private final color GREEN_COLOR = color(0, 255, 0);
-  private final color BLUE_COLOR = color(0, 0, 255);
-  private final color YELLOW_COLOR = color(255, 255, 0);
-  private final color MAGENTA_COLOR = color(255, 0, 255);
-  private final color CYAN_COLOR = color(0, 255, 255);
-  private final color WHITE_COLOR = color(255, 255, 255);
-  private final color PATTERN_COLOR = color(0, 100, 0);
+  private final int OFF_COLOR = color(20);
+  private final int RED_COLOR = color(255, 0, 0);
+  private final int GREEN_COLOR = color(0, 255, 0);
+  private final int BLUE_COLOR = color(0, 0, 255);
+  private final int YELLOW_COLOR = color(255, 255, 0);
+  private final int MAGENTA_COLOR = color(255, 0, 255);
+  private final int CYAN_COLOR = color(0, 255, 255);
+  private final int WHITE_COLOR = color(255, 255, 255);
+  private final int PATTERN_COLOR = color(0, 100, 0);
   
   // Color constants for bitwise operations
   private final int COLOR_RED = 1;
@@ -45,7 +45,7 @@ class MatrixView implements PatternObserver, StateObserver, CameraObserver {
    * Constructor with models
    */
   public MatrixView(PatternModel patternModel, SystemStateModel stateModel, CameraModel cameraModel, 
-                    int gridX, int gridY, int preferredCellSize) {
+                  int gridX, int gridY, int preferredCellSize) {
     this.patternModel = patternModel;
     this.stateModel = stateModel;
     this.cameraModel = cameraModel;
@@ -53,10 +53,10 @@ class MatrixView implements PatternObserver, StateObserver, CameraObserver {
     this.gridY = gridY;
     this.preferredCellSize = preferredCellSize;
     
-    // Register as observer
-    patternModel.addObserver(this);
-    stateModel.addObserver(this);
-    cameraModel.addObserver(this);
+    // Register for events
+    registerEvent(EventType.PATTERN_CHANGED);
+    registerEvent(EventType.STATE_CHANGED);
+    registerEvent(EventType.CAMERA_STATUS_CHANGED);
     
     // Get dimensions from model
     MATRIX_WIDTH = patternModel.getMatrixWidth();
@@ -85,24 +85,12 @@ class MatrixView implements PatternObserver, StateObserver, CameraObserver {
   }
   
   /**
-   * Observer callback for pattern changes
+   * Handle incoming events
    */
-  public void onPatternChanged() {
-    // Pattern has changed, will be reflected in next draw
-  }
-  
-  /**
-   * Observer callback for state changes
-   */
-  public void onStateChanged() {
-    // State has changed, will be reflected in next draw
-  }
-  
-  /**
-   * Observer callback for camera status changes
-   */
-  public void onCameraStatusChanged() {
-    // Camera status has changed, will be reflected in next draw
+  @Override
+  public void handleEvent(String eventType, EventData data) {
+    // For now, we don't need to do anything special for different events
+    // Just let the draw() method handle visualization
   }
   
   /**
@@ -113,15 +101,28 @@ class MatrixView implements PatternObserver, StateObserver, CameraObserver {
   }
   
   /**
+   * Check if grid is visible
+   */
+  public boolean isShowGrid() {
+    return showGrid;
+  }
+  
+  /**
    * Draw the LED matrix visualization
    */
   public void draw() {
     calculateDimensions();  // Recalculate dimensions in case window size changed
     
-    // Draw background
+    // Draw matrix background and title
     noStroke();
-    fill(10);
-    rect(gridX, gridY, matrixWidth, matrixHeight);
+    fill(20);
+    rect(gridX - 10, gridY - 30, matrixWidth + 20, matrixHeight + 60);
+    
+    // Draw matrix title
+    fill(200);
+    textAlign(CENTER, TOP);
+    textSize(14);
+    text("64x64 RGB LED MATRIX", gridX + matrixWidth / 2, gridY - 25);
     
     // Draw LED pattern
     for (int y = 0; y < MATRIX_HEIGHT; y++) {
@@ -131,7 +132,7 @@ class MatrixView implements PatternObserver, StateObserver, CameraObserver {
         int cellY = gridY + y * dynamicCellSize;
         
         // Determine cell color based on pattern and current LED position
-        color cellColor;
+        int cellColor;
         
         if (stateModel.getCurrentLedX() == x && stateModel.getCurrentLedY() == y) {
           // Current LED - use the color from state model
@@ -216,7 +217,7 @@ class MatrixView implements PatternObserver, StateObserver, CameraObserver {
   /**
    * Convert color code to actual color
    */
-  private color getLedColor(int colorCode) {
+  private int getLedColor(int colorCode) {
     switch(colorCode) {
       case COLOR_RED:
         return RED_COLOR;

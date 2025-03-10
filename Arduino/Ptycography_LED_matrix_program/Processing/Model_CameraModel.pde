@@ -110,6 +110,33 @@ class CameraModel extends EventDispatcher {
   }
   
   /**
+   * Update camera status from Arduino status message
+   */
+  public void updateFromSerialStatus(boolean triggerActive, int errorCode) {
+    boolean changed = false;
+    
+    if (this.triggerActive != triggerActive) {
+      this.triggerActive = triggerActive;
+      
+      if (triggerActive) {
+        lastTriggerTime = millis();
+      }
+      
+      changed = true;
+    }
+    
+    if (this.errorCode != errorCode) {
+      this.errorCode = errorCode;
+      updateErrorStatus();
+      changed = true;
+    }
+    
+    if (changed) {
+      publishEvent(EventType.CAMERA_STATUS_CHANGED);
+    }
+  }
+  
+  /**
    * Update error status text based on error code
    */
   private void updateErrorStatus() {

@@ -88,9 +88,8 @@ The Processing application and Arduino communicate via a simple text-based seria
 
 To use this architecture:
 
-1. **Switch to Branch**: `git checkout processing-central-control`
-2. **Arduino Setup**: Upload `LED_Matrix_Hardware_Interface.ino` to your Arduino/Teensy
-3. **Processing Setup**: Install Processing and the ControlP5 library
-4. **Run Controller**: Open and run `CentralController.pde` in Processing
+1. **Arduino Setup**: Upload `Processing/LED_Matrix_Hardware_Interface.ino` to your Arduino/Teensy
+2. **Processing Setup**: Install Processing and the ControlP5 library
+3. **Run Controller**: Open and run `Processing/CentralController.pde` in Processing
 
-For detailed instructions, see `Processing/CentralController/README.md`
+For detailed instructions, see `Processing/README.md`
