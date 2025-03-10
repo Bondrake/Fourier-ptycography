@@ -28,7 +28,8 @@ Errors are categorized by severity:
 3. ErrorManager logs the error (console and/or file)
 4. ErrorManager publishes an error event
 5. ErrorView subscribes to error events and displays notifications
-6. Other components may subscribe to error events for recovery actions
+6. Users can dismiss notifications by clicking the X button
+7. Other components may subscribe to error events for recovery actions
 
 ## Using the Error System
 

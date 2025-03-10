@@ -233,6 +233,16 @@ void controlEvent(ControlEvent event) {
   }
 }
 
+/**
+ * Handle mouse press events
+ */
+void mousePressed() {
+  // Forward to error view for closing notifications
+  if (errorView != null) {
+    errorView.mousePressed();
+  }
+}
+
 // UI control event handlers
 // These functions will be called by ControlP5 when the corresponding
 // UI controls are activated

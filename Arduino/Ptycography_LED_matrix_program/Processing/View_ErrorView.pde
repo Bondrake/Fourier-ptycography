@@ -144,6 +144,9 @@ class ErrorView extends EventDispatcher {
     for (int i = activeNotifications.size() - 1; i >= 0; i--) {
       ErrorNotification notification = activeNotifications.get(i);
       
+      // Store the current y position for mouse interaction
+      notification.yPos = yOffset;
+      
       // Choose background color based on severity
       color bgColor;
       switch (notification.severity) {
@@ -176,18 +179,36 @@ class ErrorView extends EventDispatcher {
       textAlign(LEFT, CENTER);
       textSize(14);
       
+      // Reserve space for close button
+      int closeButtonWidth = 30;
+      
       // Truncate message if needed
       String displayMessage = notification.message;
-      if (textWidth(displayMessage) > width - NOTIFICATION_PADDING * 4) {
+      if (textWidth(displayMessage) > width - NOTIFICATION_PADDING * 4 - closeButtonWidth) {
         // Truncate and add ellipsis
         int maxChars = displayMessage.length();
-        while (maxChars > 0 && textWidth(displayMessage.substring(0, maxChars) + "...") > width - NOTIFICATION_PADDING * 4) {
+        while (maxChars > 0 && textWidth(displayMessage.substring(0, maxChars) + "...") > width - NOTIFICATION_PADDING * 4 - closeButtonWidth) {
           maxChars--;
         }
         displayMessage = displayMessage.substring(0, maxChars) + "...";
       }
       
       text(displayMessage, posX + NOTIFICATION_PADDING, yOffset + NOTIFICATION_HEIGHT / 2);
+      
+      // Draw close button (X)
+      float closeX = posX + width - 25;
+      float closeY = yOffset + NOTIFICATION_HEIGHT / 2;
+      
+      // Draw close button background
+      fill(255, 255, 255, 180);
+      ellipse(closeX, closeY, 20, 20);
+      
+      // Draw X
+      stroke(50);
+      strokeWeight(2);
+      line(closeX - 5, closeY - 5, closeX + 5, closeY + 5);
+      line(closeX + 5, closeY - 5, closeX - 5, closeY + 5);
+      noStroke();
       
       // Move up for next notification
       yOffset -= (NOTIFICATION_HEIGHT + NOTIFICATION_MARGIN);
@@ -216,6 +237,28 @@ class ErrorView extends EventDispatcher {
   }
   
   /**
+   * Handle mouse clicks to dismiss notifications
+   */
+  public void mousePressed() {
+    // Check if any notification's close button was clicked
+    for (int i = activeNotifications.size() - 1; i >= 0; i--) {
+      ErrorNotification notification = activeNotifications.get(i);
+      
+      // Calculate close button position
+      float closeX = posX + width - 25;
+      float closeY = notification.yPos + NOTIFICATION_HEIGHT / 2;
+      
+      // Check if close button was clicked
+      float d = dist(mouseX, mouseY, closeX, closeY);
+      if (d <= 10) {
+        // Remove this notification
+        activeNotifications.remove(i);
+        return; // Only remove one notification per click
+      }
+    }
+  }
+  
+  /**
    * Inner class to represent an error notification
    */
   private class ErrorNotification {
@@ -224,6 +267,7 @@ class ErrorView extends EventDispatcher {
     String module;
     String errorCode;
     long timestamp;
+    int yPos; // Store current y position for mouse interaction
     
     /**
      * Constructor
@@ -234,6 +278,7 @@ class ErrorView extends EventDispatcher {
       this.module = module;
       this.errorCode = errorCode;
       this.timestamp = millis();
+      this.yPos = 0;
     }
   }
 }
