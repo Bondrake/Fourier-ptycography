@@ -68,9 +68,15 @@ void setup() {
   // Initialize managers
   serialManager = new SerialManager(stateModel, patternModel, cameraModel);
   
+  // Calculate center position for the matrix view (centered in the right portion of the window)
+  int matrixAreaWidth = WINDOW_WIDTH - INFO_PANEL_WIDTH;
+  int matrixXcenter = INFO_PANEL_WIDTH + (matrixAreaWidth / 2);
+  int matrixXoffset = (MATRIX_WIDTH * CELL_SIZE) / 2;
+  int matrixX = matrixXcenter - matrixXoffset;
+  
   // Initialize views using event-based components
   matrixView = new MatrixView(patternModel, stateModel, cameraModel, 
-                             INFO_PANEL_WIDTH, GRID_PADDING_TOP, CELL_SIZE);
+                             matrixX, GRID_PADDING_TOP, CELL_SIZE);
   
   // Position the status panel at 55% down the screen
   int statusPanelY = (int)(WINDOW_HEIGHT * 0.55);

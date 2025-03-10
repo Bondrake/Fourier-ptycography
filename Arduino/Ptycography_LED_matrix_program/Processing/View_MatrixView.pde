@@ -70,10 +70,14 @@ class MatrixView extends EventDispatcher {
    * Calculate cell size and dimensions based on available space
    */
   private void calculateDimensions() {
-    // Determine the maximum size that fits in the available space
-    int availableWidth = width - gridX - 40;
+    // Available space calculation - the matrix should be centered in its own area
     int availableHeight = height - gridY - 40;
     
+    // For width, we know the matrix should be in the main content area (right side)
+    // and should not go past the right edge of the window
+    int availableWidth = width - (gridX + 40);
+    
+    // Calculate maximum cell size that fits in the available space
     int maxCellSize = min(availableWidth / MATRIX_WIDTH, availableHeight / MATRIX_HEIGHT);
     
     // Use preferred size if smaller, otherwise use maximum available
