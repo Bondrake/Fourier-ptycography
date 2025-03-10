@@ -26,7 +26,7 @@ class ConfigManager {
   private static final int DEFAULT_WINDOW_WIDTH = 1280;
   private static final int DEFAULT_WINDOW_HEIGHT = 800;
   private static final boolean DEFAULT_SIMULATION_MODE = true;
-  private static final int DEFAULT_PATTERN_TYPE = 0; // Concentric rings
+  private static final int DEFAULT_PATTERN_TYPE = 3; // Grid pattern
   private static final int DEFAULT_INNER_RADIUS = 16;
   private static final int DEFAULT_MIDDLE_RADIUS = 24;
   private static final int DEFAULT_OUTER_RADIUS = 31;
@@ -208,6 +208,7 @@ class ConfigManager {
   private void validateConfig() {
     // Check pattern config
     if (!config.hasKey("pattern")) {
+      println("Config missing pattern key, creating default pattern config");
       JSONObject patternConfig = new JSONObject();
       patternConfig.setInt("patternType", DEFAULT_PATTERN_TYPE);
       patternConfig.setInt("innerRadius", DEFAULT_INNER_RADIUS);
@@ -215,6 +216,10 @@ class ConfigManager {
       patternConfig.setInt("outerRadius", DEFAULT_OUTER_RADIUS);
       patternConfig.setInt("ledSkip", DEFAULT_LED_SKIP);
       config.setJSONObject("pattern", patternConfig);
+    } else {
+      // Debug - check the pattern type 
+      JSONObject patternConfig = config.getJSONObject("pattern");
+      println("Loaded pattern type from config: " + patternConfig.getInt("patternType", -1));
     }
     
     // Check camera config

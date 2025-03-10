@@ -241,6 +241,10 @@ class PatternModel extends EventDispatcher {
   }
   
   public void setPatternType(int patternType) {
+    // Debug - log pattern type changes
+    println("PatternModel: Setting pattern type to " + patternType + 
+            " (0=Rings, 1=Center, 2=Spiral, 3=Grid)");
+            
     if (this.patternType != patternType) {
       this.patternType = patternType;
       generatePattern();

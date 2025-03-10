@@ -83,6 +83,11 @@ class AppController extends EventDispatcher implements SerialEventCallback {
     
     // Apply pattern settings
     JSONObject patternConfig = config.getPatternConfig();
+    
+    // Debug - check pattern config
+    println("AppController: Reading pattern config from file");
+    println("  - patternType: " + patternConfig.getInt("patternType", -1));
+    
     patternModel.setPatternType(patternConfig.getInt("patternType", 0));
     patternModel.setInnerRingRadius(patternConfig.getInt("innerRadius", 16));
     patternModel.setMiddleRingRadius(patternConfig.getInt("middleRadius", 24));
