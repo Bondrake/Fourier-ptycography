@@ -39,6 +39,7 @@ UIManager uiManager;
 SerialManager serialManager;
 MatrixView matrixView;
 StatusPanelView statusView;
+ErrorView errorView;
 
 // Collection of throttled event dispatchers to update
 ArrayList<ThrottledEventDispatcher> throttledDispatchers;
@@ -93,6 +94,9 @@ void setup() {
   // Initialize UI
   uiManager = new UIManager(this, patternModel, stateModel, cameraModel, serialManager);
   
+  // Initialize error view at the bottom of window
+  errorView = new ErrorView(0, WINDOW_HEIGHT - 200, WINDOW_WIDTH, 200);
+  
   // Initialize controller with all components
   appController = new AppController(this);
   
@@ -128,6 +132,7 @@ void draw() {
   // Draw components
   statusView.draw();
   matrixView.draw();
+  errorView.draw();
   
   // Update simulation if running
   if (stateModel.isSimulationMode() && stateModel.isRunning() && !stateModel.isPaused()) {
@@ -209,6 +214,12 @@ void serialEvent(Serial port) {
  * Handle key press events
  */
 void keyPressed() {
+  // Press 'e' to test the error system
+  if (key == 'e' || key == 'E') {
+    testErrorSystem();
+    return;
+  }
+  
   appController.keyPressed(key);
 }
 
@@ -263,6 +274,53 @@ void circleMaskToggle(boolean value) {
 // Camera settings
 void cameraEnabled(boolean value) {
   cameraModel.setEnabled(value);
+}
+
+/**
+ * Test the error system with various error types
+ * This is for development testing only
+ */
+void testErrorSystem() {
+  // Generate errors of different severity levels
+  getErrorManager().reportError(
+    "This is an info message",
+    ErrorSeverity.INFO,
+    "TestModule"
+  );
+  
+  getErrorManager().reportError(
+    "This is a warning message",
+    ErrorSeverity.WARNING,
+    "TestModule",
+    "TEST_WARNING"
+  );
+  
+  getErrorManager().reportError(
+    "This is an error message",
+    ErrorSeverity.ERROR,
+    "TestModule",
+    "TEST_ERROR"
+  );
+  
+  getErrorManager().reportError(
+    "This is a critical error message",
+    ErrorSeverity.CRITICAL,
+    "TestModule",
+    "TEST_CRITICAL"
+  );
+  
+  // Test error with exception
+  try {
+    throw new Exception("Test exception");
+  } catch (Exception e) {
+    getErrorManager().reportError(
+      "Error with exception: " + e.getMessage(),
+      e,
+      ErrorSeverity.ERROR,
+      "TestModule",
+      "TEST_EXCEPTION"
+    );
+  }
 }
 
 /**

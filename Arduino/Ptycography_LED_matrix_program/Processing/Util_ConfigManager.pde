@@ -60,7 +60,14 @@ class ConfigManager extends EventDispatcher {
           config = loadJSONObject(configFilePath);
           validateConfig();
         } catch (Exception e) {
-          println("Error loading config, using defaults: " + e.getMessage());
+          // Report the error through ErrorManager
+          getErrorManager().reportError(
+            "Failed to load configuration file: " + e.getMessage(), 
+            e, 
+            ErrorSeverity.WARNING, 
+            "ConfigManager",
+            "CONFIG_LOAD_ERROR"
+          );
           setDefaults();
         }
       } else {
@@ -71,8 +78,21 @@ class ConfigManager extends EventDispatcher {
       
       println("ConfigManager initialized successfully");
     } catch (Exception e) {
-      println("Error in ConfigManager constructor: " + e.getMessage());
-      e.printStackTrace();
+      // Report critical error with the ErrorManager
+      if (getErrorManager() != null) {
+        getErrorManager().reportError(
+          "Critical error in ConfigManager initialization: " + e.getMessage(),
+          e,
+          ErrorSeverity.CRITICAL,
+          "ConfigManager",
+          "CONFIG_INIT_ERROR"
+        );
+      } else {
+        // Fallback if ErrorManager isn't available yet
+        println("Error in ConfigManager constructor: " + e.getMessage());
+        e.printStackTrace();
+      }
+      
       // Initialize with empty config to prevent further errors
       config = new JSONObject();
       setDefaults();
@@ -157,8 +177,14 @@ class ConfigManager extends EventDispatcher {
       isLoading = false;
       return true;
     } catch (Exception e) {
-      println("Error loading configuration: " + e.getMessage());
-      e.printStackTrace();
+      // Report error with the ErrorManager
+      getErrorManager().reportError(
+        "Error loading configuration: " + e.getMessage(),
+        e,
+        ErrorSeverity.ERROR,
+        "ConfigManager",
+        "CONFIG_LOAD_ERROR"
+      );
       
       // Fall back to defaults
       setDefaults();
@@ -200,8 +226,15 @@ class ConfigManager extends EventDispatcher {
       isSaving = false;
       return true;
     } catch (Exception e) {
-      println("Error saving configuration: " + e.getMessage());
-      e.printStackTrace();
+      // Report error with the ErrorManager
+      getErrorManager().reportError(
+        "Error saving configuration: " + e.getMessage(),
+        e,
+        ErrorSeverity.ERROR,
+        "ConfigManager",
+        "CONFIG_SAVE_ERROR"
+      );
+      
       isSaving = false;
       return false;
     }
