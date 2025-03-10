@@ -104,23 +104,23 @@ The `modularization` branch focuses exclusively on the central controller archit
 
 ## Documentation
 
-The project documentation has been consolidated for better clarity:
+The project documentation has been consolidated for better organization:
 
 - **README.md** (this file) - Main project overview and getting started guide
-- **ARCHITECTURE.md** - Comprehensive architecture documentation
-- **TEST.md** - Complete testing documentation
 - **CLAUDE.md** - Development guide for AI assistant
 - **Processing/README.md** - Processing code documentation
-- **DOCUMENTATION_UPDATE.md** - Overview of documentation organization
 
-### Documentation Hierarchy
+### Detailed Documentation
 
-- Start with this README.md for an overview
-- Reference ARCHITECTURE.md for design details
-- Use TEST.md for testing information
-- See Processing/README.md for Processing-specific implementation
+Additional documentation is available in the `Documentation/` directory:
 
-> **Note**: Historical documentation has been moved to the `docs-archive` directory. See `DOCUMENTATION_UPDATE.md` for details.
+- [ARCHITECTURE.md](Documentation/ARCHITECTURE.md) - System architecture details
+- [ERROR_HANDLING.md](Documentation/ERROR_HANDLING.md) - Error handling system overview
+- [EVENT_FLOW.md](Documentation/EVENT_FLOW.md) - Event system documentation
+- [FUTURE_IMPROVEMENTS.md](Documentation/FUTURE_IMPROVEMENTS.md) - Planned enhancements
+- [PROJECT_STATUS.md](Documentation/PROJECT_STATUS.md) - Current project state
+- [TEST.md](Documentation/TEST.md) - Testing procedures and guidelines
+- [DOCUMENTATION_UPDATE.md](Documentation/DOCUMENTATION_UPDATE.md) - Documentation organization
 
 ## Power Management Features
 
