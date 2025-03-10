@@ -40,6 +40,7 @@ class AppController extends EventDispatcher implements SerialEventCallback {
     registerEvent(EventType.STATE_CHANGED);
     registerEvent(EventType.CAMERA_STATUS_CHANGED);
     registerEvent(EventType.CONFIG_LOADED);
+    registerEvent(EventType.CONFIG_SAVED);
     
     // Note: Models, views and managers are now initialized in the main sketch
     // and provided via setter methods
@@ -361,6 +362,13 @@ class AppController extends EventDispatcher implements SerialEventCallback {
         
       case EventType.STATE_CHANGED:
         // System state changed, might need to update UI or save settings
+        break;
+        
+      case EventType.CONFIG_SAVED:
+        // Configuration was saved, update status panel with confirmation
+        if (statusView != null) {
+          statusView.showTemporaryMessage("Configuration saved successfully");
+        }
         break;
     }
   }

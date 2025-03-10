@@ -23,6 +23,11 @@ class StatusPanelView extends EventDispatcher {
   private int panelX;
   private int panelY;
   
+  // Temporary message display
+  private String temporaryMessage = "";
+  private int temporaryMessageDuration = 0;
+  private int temporaryMessageStartTime = 0;
+  
   /**
    * Constructor with models and position
    */
@@ -67,6 +72,29 @@ class StatusPanelView extends EventDispatcher {
     // Draw header separator
     stroke(100);
     line(panelX + 10, 35, panelX + INFO_PANEL_WIDTH - 10, 35);
+    
+    // Draw temporary message if active
+    if (temporaryMessage != null && !temporaryMessage.isEmpty()) {
+      // Check if message duration has expired
+      if (millis() - temporaryMessageStartTime < temporaryMessageDuration) {
+        // Draw message with semi-transparent background
+        fill(20, 160, 20, 220);
+        noStroke();
+        rect(panelX + 10, 35, INFO_PANEL_WIDTH - 20, 30);
+        
+        // Draw message text
+        fill(255);
+        textAlign(CENTER, CENTER);
+        textSize(14);
+        text(temporaryMessage, panelX + INFO_PANEL_WIDTH/2, 50);
+        
+        // Reset text alignment
+        textAlign(LEFT, TOP);
+      } else {
+        // Clear message once duration is exceeded
+        temporaryMessage = "";
+      }
+    }
     
     // Start position for status sections
     // We keep the header at the top but position the actual status sections at the specified Y position
@@ -283,5 +311,26 @@ class StatusPanelView extends EventDispatcher {
       value = value.substring(0, 10) + "...";
     }
     text(value, panelX + 100, yPos);
+  }
+  
+  /**
+   * Show a temporary message in the status panel
+   * 
+   * @param message The message to display
+   * @param duration The duration in milliseconds (default 3000ms)
+   */
+  public void showTemporaryMessage(String message, int duration) {
+    temporaryMessage = message;
+    temporaryMessageDuration = duration;
+    temporaryMessageStartTime = millis();
+  }
+  
+  /**
+   * Show a temporary message with default duration (3 seconds)
+   * 
+   * @param message The message to display
+   */
+  public void showTemporaryMessage(String message) {
+    showTemporaryMessage(message, 3000);
   }
 }

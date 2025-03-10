@@ -64,6 +64,7 @@ class UIManager extends EventDispatcher {
     registerEvent(EventType.CAMERA_STATUS_CHANGED);
     registerEvent(EventType.SERIAL_PORTS_CHANGED);
     registerEvent(EventType.CONFIG_LOADED);
+    registerEvent(EventType.CONFIG_SAVED);
   }
   
   /**
@@ -760,6 +761,11 @@ class UIManager extends EventDispatcher {
         
       case EventType.CONFIG_LOADED:
         // Update UI with loaded configuration values
+        updateControlsFromModels();
+        break;
+        
+      case EventType.CONFIG_SAVED:
+        // Update UI to reflect saved configuration
         updateControlsFromModels();
         break;
     }

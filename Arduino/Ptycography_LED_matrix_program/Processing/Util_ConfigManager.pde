@@ -3,6 +3,7 @@
  * 
  * Manages configuration settings for the application.
  * Supports loading/saving from/to JSON files.
+ * Implements EventDispatcher for event-based communication.
  * 
  * This would be reimplemented using Rust in a Tauri migration.
  */
@@ -18,7 +19,7 @@ ConfigManager getConfigManager() {
   return configManagerInstance;
 }
 
-class ConfigManager {
+class ConfigManager extends EventDispatcher {
   private JSONObject config;
   private String configFilePath;
   
@@ -148,8 +149,9 @@ class ConfigManager {
       // Validate and ensure all required fields exist
       validateConfig();
       
-      // Notify that configuration has been loaded - safer without event
-      // Uncomment only if needed: getEventBus().publish(EventType.CONFIG_LOADED);
+      // Notify that configuration has been loaded
+      EventData configData = new EventData("source", "file");
+      publishEvent(EventType.CONFIG_LOADED, configData);
       println("Configuration loaded successfully");
       
       isLoading = false;
@@ -190,8 +192,9 @@ class ConfigManager {
       // Save the config file
       saveJSONObject(config, configFilePath);
       
-      // Notify that configuration has been saved - safer without event
-      // Uncomment only if needed: getEventBus().publish(EventType.CONFIG_SAVED);
+      // Notify that configuration has been saved
+      EventData configData = new EventData("source", "file");
+      publishEvent(EventType.CONFIG_SAVED, configData);
       println("Configuration saved successfully");
       
       isSaving = false;
@@ -319,5 +322,21 @@ class ConfigManager {
     cameraConfig.setInt("pulseWidth", model.getPulseWidth());
     cameraConfig.setInt("postDelay", model.getPostDelay());
     config.setJSONObject("camera", cameraConfig);
+  }
+  
+  /**
+   * Handle events from the event system
+   * Currently the ConfigManager publishes events but doesn't subscribe to any
+   */
+  @Override
+  public void handleEvent(String eventType, EventData data) {
+    // Implement if ConfigManager needs to respond to events in the future
+    switch (eventType) {
+      // Add event handling as needed
+      
+      default:
+        // Unknown event type - just ignore
+        break;
+    }
   }
 }
