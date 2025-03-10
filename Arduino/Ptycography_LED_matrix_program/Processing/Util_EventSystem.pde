@@ -296,7 +296,7 @@ class ThrottledEventDispatcher extends EventDispatcher {
     if (lastTime == null || currentTime - lastTime >= interval) {
       // It's been long enough since the last publish, so publish now
       super.publishEvent(eventType, data);
-      lastPublishTime.put(eventType, currentTime);
+      lastPublishTime.put(eventType, Long.valueOf(currentTime));
       pendingEvents.remove(eventType); // Clear any pending event
     } else {
       // Store this as a pending event to be published later
@@ -324,7 +324,7 @@ class ThrottledEventDispatcher extends EventDispatcher {
         EventData data = pendingEvents.get(eventType);
         if (data != null) {
           super.publishEvent(eventType, data);
-          lastPublishTime.put(eventType, currentTime);
+          lastPublishTime.put(eventType, Long.valueOf(currentTime));
           pendingEvents.remove(eventType);
         }
       }
@@ -342,7 +342,7 @@ class ThrottledEventDispatcher extends EventDispatcher {
     EventData data = pendingEvents.get(eventType);
     if (data != null) {
       super.publishEvent(eventType, data);
-      lastPublishTime.put(eventType, millis());
+      lastPublishTime.put(eventType, Long.valueOf(millis()));
       pendingEvents.remove(eventType);
       return true;
     }
