@@ -1,32 +1,32 @@
-# Future Improvement Opportunities for Ptycography LED Matrix Codebase
+# Remaining Improvement Opportunities for Ptycography LED Matrix Codebase
 
-This document outlines high-priority improvement opportunities for the codebase. The suggestions focus on making the code more modular, maintainable, and aligned with best practices.
+This document outlines the remaining high-priority improvement opportunities for the codebase. The suggestions focus on making the code more modular, maintainable, and aligned with best practices.
 
-## 1. Complete Event System Migration
+> **Note:** Initial improvements for Event System Migration and Configuration Management have been completed.
 
-The codebase is transitioning from an observer pattern to an event system:
+## 1. Complete Advanced Event System Features
+
+Building on our event system implementation:
 
 ```java
-// Using EventSystem instead of observer pattern
+// Enhance the existing EventSystem with additional features
 ```
 
-**Improvements:**
-- Finish removing all observer pattern remnants
-- Standardize event naming conventions (e.g., STATE_CHANGED vs. stateChanged)
+**Remaining Improvements:**
 - Implement event throttling to prevent performance issues with rapidly firing events
 - Add event documentation to clarify which components produce/consume each event
+- Consider hierarchical event types for more granular control
 
-## 2. Configuration Management
+## 2. Configuration Management Enhancements
 
-The current ConfigManager has areas for improvement:
+Building on the event-based ConfigManager:
 
 ```java
-private boolean isLoading = false;
-private boolean isSaving = false;
+// Further enhance the ConfigManager now that it uses events properly
 ```
 
-**Improvements:**
-- Implement a more robust configuration system with schema validation
+**Remaining Improvements:**
+- Implement schema validation for configuration files
 - Add versioning to configuration files for backward compatibility
 - Separate default values from loading logic
 - Add user preferences vs. system configuration distinction
@@ -67,7 +67,17 @@ cp5.addToggle("circleMaskToggle")
 - Create a theme system for consistent styling
 - Better separate UI logic from view rendering
 
-## 5. Testing Framework
+## 5. Documentation Standards
+
+While documentation exists, it could be more comprehensive:
+
+**Improvements:**
+- Add JavaDoc to all public methods and classes
+- Document event flow between components
+- Create architectural diagrams for system overview
+- Add runtime performance considerations to docs
+
+## 6. Testing Framework
 
 The codebase would benefit from automated tests:
 
@@ -77,7 +87,7 @@ The codebase would benefit from automated tests:
 - Add UI tests for interactive elements
 - Create automated testing for hardware communication protocols
 
-## 6. Hardware Abstraction
+## 7. Hardware Abstraction
 
 The hardware integration could be more modular:
 
@@ -86,16 +96,6 @@ The hardware integration could be more modular:
 - Create a hardware abstraction layer to support multiple platforms
 - Implement proper mocking for simulated hardware
 - Add device discovery and auto-configuration
-
-## 7. Documentation Standards
-
-While documentation exists, it could be more comprehensive:
-
-**Improvements:**
-- Add JavaDoc to all public methods and classes
-- Document event flow between components
-- Create architectural diagrams for system overview
-- Add runtime performance considerations to docs
 
 ## 8. Dependency Injection
 
@@ -112,26 +112,6 @@ matrixView = new MatrixView(patternModel, stateModel, cameraModel,
 - Make dependencies more explicit in class constructors
 - Consider a service locator pattern for shared resources
 
-## 9. Concurrent Operations
-
-Some operations might benefit from better concurrency:
-
-**Improvements:**
-- Add proper thread safety to shared resources
-- Implement background processing for slower operations
-- Use non-blocking I/O for hardware communication
-- Add progress reporting for long-running operations
-
-## 10. State Management
-
-The current state model could be more structured:
-
-**Improvements:**
-- Implement a more formal state machine
-- Create clearer state transitions
-- Add validation for state changes
-- Support undo/redo functionality for user actions
-
 ## Implementation Strategy
 
 When implementing these improvements:
@@ -144,4 +124,4 @@ When implementing these improvements:
 
 ---
 
-*Generated with assistance from [Claude](https://anthropic.com/) - March 2025*
+*Updated March 2025*

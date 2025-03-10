@@ -11,7 +11,7 @@
     "preDelay": 400,
     "pulseWidth": 100,
     "postDelay": 1500,
-    "enabled": true
+    "enabled": false
   },
   "windowWidth": 1280,
   "simulationMode": true,

@@ -63,30 +63,30 @@ The application follows a modified MVC (Model-View-Controller) architecture with
 ### 2.1 Architecture Diagram
 
 ```
-+-----------------------------------------------------------+
-|                   CentralController                       |
-+-----------------------------------------------------------+
-           |                |               |
-           v                v               v
-+----------------+  +----------------+  +----------------+
-|     Models     |  |   Controllers  |  |     Views      |
-+----------------+  +----------------+  +----------------+
-| Model_PatternModel|  | Controller_App | | View_MatrixView|
-| Model_SystemState|  | Util_UIManager  | | View_StatusPanel|
-| Model_CameraModel|  |                 | |                 |
-+----------------+  +----------------+  +----------------+
-           |                |               |
-           v                v               v
-+-----------------------------------------------------------+
-|                       Utilities                           |
++------------------------------------------------------------+
+|                   CentralController                        |
++------------------------------------------------------------+
+           |                   |                   |
+           v                   v                   v
++-------------------+  +----------------+  +-----------------+
+|     Models        |  |   Controllers  |  |     Views       |
++-------------------+  +----------------+  +-----------------+
+| Model_PatternModel|  | Controller_App |  | View_MatrixView |
+| Model_SystemState |  | Util_UIManager |  | View_StatusPanel|
+| Model_CameraModel |  |                |  |                 |
++-------------------+  +----------------+  +-----------------+
+           |                |                      |
+           v                v                      v
++------------------------------------------------------------+
+|                       Utilities                            |
 | Util_EventSystem | Util_ConfigManager | Util_SerialManager |
-+-----------------------------------------------------------+
++------------------------------------------------------------+
            |                                |
            v                                v
-+-------------------+            +-------------------+
-| Physical Hardware |            |  Processing IDE   |
-| (Arduino/Teensy)  |            |    Environment    |
-+-------------------+            +-------------------+
++-------------------+              +-------------------+
+| Physical Hardware |              |  Processing IDE   |
+| (Arduino/Teensy)  |              |    Environment    |
++-------------------+              +-------------------+
 ```
 
 > **Note**: The class names in this diagram reflect the actual file naming convention used in the flat file structure.
