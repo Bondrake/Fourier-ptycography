@@ -204,3 +204,158 @@ class EventDispatcher implements EventHandler {
     // Default implementation does nothing
   }
 }
+
+/**
+ * ThrottledEventSystem
+ * 
+ * This file contains classes related to event throttling in the event system.
+ * Throttling prevents performance issues by limiting the frequency of events,
+ * particularly for rapid UI updates and hardware/serial communication.
+ * 
+ * Key components:
+ * - ThrottledEventDispatcher: Base class for throttling event publishing
+ * - Event-specific implementations (e.g., ThrottledSystemStateModel)
+ * 
+ * Usage:
+ * 1. Extend ThrottledEventDispatcher for a component that needs throttling
+ * 2. Override publishEvent to use throttling for specific event types
+ * 3. Register the throttled dispatcher with the central controller
+ * 4. Call update() regularly (this happens automatically in the draw loop)
+ */
+
+/**
+ * ThrottledEventDispatcher extends EventDispatcher to add event throttling.
+ * This class limits how frequently events can be published to prevent
+ * performance issues with rapidly firing events.
+ */
+class ThrottledEventDispatcher extends EventDispatcher {
+  // Map to track last time an event was published by type
+  private HashMap<String, Long> lastPublishTime;
+  // Map to store default throttle intervals by event type
+  private HashMap<String, Integer> throttleIntervals;
+  // Map to store pending events that need to be published after throttle
+  private HashMap<String, EventData> pendingEvents;
+  
+  // Default throttle interval in milliseconds
+  private static final int DEFAULT_THROTTLE_INTERVAL = 100;
+  
+  /**
+   * Constructor
+   */
+  public ThrottledEventDispatcher() {
+    super();
+    lastPublishTime = new HashMap<String, Long>();
+    throttleIntervals = new HashMap<String, Integer>();
+    pendingEvents = new HashMap<String, EventData>();
+  }
+  
+  /**
+   * Set throttle interval for a specific event type
+   * 
+   * @param eventType The event type to throttle
+   * @param interval Throttle interval in milliseconds
+   */
+  public void setThrottleInterval(String eventType, int interval) {
+    throttleIntervals.put(eventType, interval);
+  }
+  
+  /**
+   * Get throttle interval for a specific event type
+   * 
+   * @param eventType The event type
+   * @return Throttle interval in milliseconds
+   */
+  public int getThrottleInterval(String eventType) {
+    Integer interval = throttleIntervals.get(eventType);
+    return (interval != null) ? interval : DEFAULT_THROTTLE_INTERVAL;
+  }
+  
+  /**
+   * Publish an event with throttling
+   * 
+   * @param eventType The event type
+   */
+  @Override
+  protected void publishEvent(String eventType) {
+    publishEvent(eventType, new EventData());
+  }
+  
+  /**
+   * Publish an event with data and throttling
+   * 
+   * @param eventType The event type
+   * @param data Event data
+   */
+  @Override
+  protected void publishEvent(String eventType, EventData data) {
+    long currentTime = millis();
+    Long lastTime = lastPublishTime.get(eventType);
+    int interval = getThrottleInterval(eventType);
+    
+    // Check if we've published this event recently
+    if (lastTime == null || currentTime - lastTime >= interval) {
+      // It's been long enough since the last publish, so publish now
+      super.publishEvent(eventType, data);
+      lastPublishTime.put(eventType, currentTime);
+      pendingEvents.remove(eventType); // Clear any pending event
+    } else {
+      // Store this as a pending event to be published later
+      pendingEvents.put(eventType, data);
+    }
+  }
+  
+  /**
+   * Update method - should be called regularly (e.g., in draw())
+   * Publishes any pending events that have exceeded their throttle interval
+   */
+  public void update() {
+    long currentTime = millis();
+    
+    // Create a copy of the keys to prevent concurrent modification
+    ArrayList<String> eventTypes = new ArrayList<String>(pendingEvents.keySet());
+    
+    for (String eventType : eventTypes) {
+      Long lastTime = lastPublishTime.get(eventType);
+      int interval = getThrottleInterval(eventType);
+      
+      // Check if enough time has passed since the last publish
+      if (lastTime != null && currentTime - lastTime >= interval) {
+        // Get the pending event data and publish it
+        EventData data = pendingEvents.get(eventType);
+        if (data != null) {
+          super.publishEvent(eventType, data);
+          lastPublishTime.put(eventType, currentTime);
+          pendingEvents.remove(eventType);
+        }
+      }
+    }
+  }
+  
+  /**
+   * Force immediate publication of a pending event,
+   * ignoring the throttle interval
+   * 
+   * @param eventType The event type to force publish
+   * @return True if a pending event was published, false otherwise
+   */
+  public boolean forcePublishPending(String eventType) {
+    EventData data = pendingEvents.get(eventType);
+    if (data != null) {
+      super.publishEvent(eventType, data);
+      lastPublishTime.put(eventType, millis());
+      pendingEvents.remove(eventType);
+      return true;
+    }
+    return false;
+  }
+  
+  /**
+   * Check if there's a pending event for the given type
+   * 
+   * @param eventType The event type to check
+   * @return True if there's a pending event, false otherwise
+   */
+  public boolean hasPendingEvent(String eventType) {
+    return pendingEvents.containsKey(eventType);
+  }
+}

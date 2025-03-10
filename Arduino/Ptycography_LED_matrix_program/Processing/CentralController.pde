@@ -40,6 +40,9 @@ SerialManager serialManager;
 MatrixView matrixView;
 StatusPanelView statusView;
 
+// Collection of throttled event dispatchers to update
+ArrayList<ThrottledEventDispatcher> throttledDispatchers;
+
 // Constants
 final int WINDOW_WIDTH = 1080;
 final int WINDOW_HEIGHT = 1100; 
@@ -57,9 +60,13 @@ void setup() {
   size(1080, 1100);
   surface.setTitle("Ptycography LED Matrix Controller");
   
+  // Initialize collection for throttled dispatchers
+  throttledDispatchers = new ArrayList<ThrottledEventDispatcher>();
+  
   // Initialize models
   patternModel = new PatternModel(MATRIX_WIDTH, MATRIX_HEIGHT);
-  stateModel = new SystemStateModel();
+  // Use throttled state model to prevent performance issues with rapid state changes
+  stateModel = new ThrottledSystemStateModel(50); // 50ms throttle interval for state changes
   cameraModel = new CameraModel();
   
   // Initialize sequence info after pattern generation
@@ -136,6 +143,11 @@ void draw() {
   // Process serial data if connected to hardware
   if (!stateModel.isSimulationMode() && stateModel.isHardwareConnected()) {
     // Serial processing is now handled by the SerialManager
+  }
+  
+  // Update all throttled event dispatchers
+  for (ThrottledEventDispatcher dispatcher : throttledDispatchers) {
+    dispatcher.update();
   }
 }
 
@@ -251,4 +263,26 @@ void circleMaskToggle(boolean value) {
 // Camera settings
 void cameraEnabled(boolean value) {
   cameraModel.setEnabled(value);
+}
+
+/**
+ * Register a throttled event dispatcher for automatic updating in the draw loop
+ * 
+ * @param dispatcher The ThrottledEventDispatcher to register
+ */
+void registerThrottledDispatcher(ThrottledEventDispatcher dispatcher) {
+  if (dispatcher != null && !throttledDispatchers.contains(dispatcher)) {
+    throttledDispatchers.add(dispatcher);
+  }
+}
+
+/**
+ * Unregister a throttled event dispatcher
+ * 
+ * @param dispatcher The ThrottledEventDispatcher to unregister
+ */
+void unregisterThrottledDispatcher(ThrottledEventDispatcher dispatcher) {
+  if (dispatcher != null) {
+    throttledDispatchers.remove(dispatcher);
+  }
 }

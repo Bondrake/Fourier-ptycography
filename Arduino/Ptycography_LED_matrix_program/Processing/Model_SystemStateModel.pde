@@ -264,4 +264,77 @@ class SystemStateModel extends EventDispatcher {
   }
 }
 
+/**
+ * Throttled version of SystemStateModel that limits how frequently 
+ * state change events are published to prevent overwhelming subscribers.
+ * Particularly useful for rapid LED updates during sequence execution.
+ */
+class ThrottledSystemStateModel extends SystemStateModel {
+  // Internal throttled event dispatcher
+  private ThrottledEventDispatcher throttledDispatcher;
+  
+  /**
+   * Constructor
+   * 
+   * @param stateChangeInterval The throttle interval for state change events in ms (default: 100ms)
+   */
+  public ThrottledSystemStateModel(int stateChangeInterval) {
+    super();
+    // Create the throttled dispatcher
+    throttledDispatcher = new ThrottledEventDispatcher();
+    // Set the interval for state changed events
+    throttledDispatcher.setThrottleInterval(EventType.STATE_CHANGED, stateChangeInterval);
+    
+    // Register the dispatcher with the main controller
+    if (throttledDispatchers != null) {
+      registerThrottledDispatcher(throttledDispatcher);
+    }
+  }
+  
+  /**
+   * Constructor with default throttle interval of 100ms
+   */
+  public ThrottledSystemStateModel() {
+    this(100); // Default to 100ms throttling
+  }
+  
+  /**
+   * Override publishEvent to use throttled dispatcher for state changes
+   */
+  @Override
+  protected void publishEvent(String eventType) {
+    publishEvent(eventType, new EventData());
+  }
+  
+  /**
+   * Override publishEvent to use throttled dispatcher for state changes
+   */
+  @Override
+  protected void publishEvent(String eventType, EventData data) {
+    if (eventType.equals(EventType.STATE_CHANGED)) {
+      // Use throttled publishing for state change events
+      throttledDispatcher.publishEvent(eventType, data);
+    } else {
+      // Use regular publishing for other event types
+      super.publishEvent(eventType, data);
+    }
+  }
+  
+  /**
+   * Set throttle interval for state change events
+   * 
+   * @param interval Throttle interval in milliseconds
+   */
+  public void setStateChangeThrottleInterval(int interval) {
+    throttledDispatcher.setThrottleInterval(EventType.STATE_CHANGED, interval);
+  }
+  
+  /**
+   * Force immediate publication of any pending state change events
+   */
+  public void forcePublishStateChange() {
+    throttledDispatcher.forcePublishPending(EventType.STATE_CHANGED);
+  }
+}
+
 // Using EventSystem instead of observer pattern
