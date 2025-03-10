@@ -1,5 +1,7 @@
 # Ptycography LED Matrix Program - Development Guide
 
+> **Note:** See [FUTURE_IMPROVEMENTS.md](./FUTURE_IMPROVEMENTS.md) for a detailed list of code improvement opportunities.
+
 ## Build/Upload Commands
 - Compile and upload to Arduino: Arduino IDE → Verify/Upload button
 - Verify Arduino code: Arduino IDE → Sketch → Verify/Compile
