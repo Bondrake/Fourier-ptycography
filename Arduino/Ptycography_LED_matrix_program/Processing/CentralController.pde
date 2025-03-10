@@ -72,8 +72,10 @@ void setup() {
   matrixView = new MatrixView(patternModel, stateModel, cameraModel, 
                              INFO_PANEL_WIDTH, GRID_PADDING_TOP, CELL_SIZE);
   
+  // Position the status panel at 55% down the screen
+  int statusPanelY = (int)(WINDOW_HEIGHT * 0.55);
   statusView = new StatusPanelView(patternModel, stateModel, cameraModel,
-                                  0, GRID_PADDING_TOP, INFO_PANEL_WIDTH);
+                                  0, statusPanelY, INFO_PANEL_WIDTH);
   
   // Initialize UI
   uiManager = new UIManager(this, patternModel, stateModel, cameraModel, serialManager);

@@ -69,6 +69,7 @@ class StatusPanelView extends EventDispatcher {
     line(panelX + 10, 35, panelX + INFO_PANEL_WIDTH - 10, 35);
     
     // Start position for status sections
+    // We keep the header at the top but position the actual status sections at the specified Y position
     int yPos = panelY;
     
     // SECTION: Status Information
