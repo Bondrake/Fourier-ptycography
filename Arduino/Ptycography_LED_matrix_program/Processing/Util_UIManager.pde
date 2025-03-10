@@ -28,6 +28,7 @@ class UIManager extends EventDispatcher {
   private final int CONTROL_MARGIN = 10;
   private final int BAR_HEIGHT = 20;
   private final int GRID_PADDING_TOP = 50;
+  private final int PARAM_GROUP_Y = 150;  // Y position for parameter groups
   
   // Model references
   private PatternModel patternModel;
@@ -96,7 +97,7 @@ class UIManager extends EventDispatcher {
    */
   private void setupPatternGroup() {
     final int GROUP_WIDTH = INFO_PANEL_WIDTH - CONTROL_MARGIN * 2;
-    final int PATTERN_GROUP_HEIGHT = 350;
+    final int PATTERN_GROUP_HEIGHT = 380; // Increased from 350 to accommodate lower parameter groups
     
     // Create Pattern Settings Group
     patternGroup = cp5.addGroup("Pattern Settings")
@@ -122,7 +123,7 @@ class UIManager extends EventDispatcher {
       .setColorActive(color(0, 255, 0))
       .setColorLabel(color(255))
       .setItemsPerRow(1)
-      .setSpacingRow(10)
+      .setSpacingRow(12) // Increased from 10 to add more spacing between radio buttons
       .addItem("Concentric Rings", PatternModel.PATTERN_CONCENTRIC_RINGS)
       .addItem("Center Only", PatternModel.PATTERN_CENTER_ONLY)
       .addItem("Spiral", PatternModel.PATTERN_SPIRAL)
@@ -141,16 +142,27 @@ class UIManager extends EventDispatcher {
       .setFont(createFont("Arial", 14))
       .moveTo(patternGroup);
     
+    // Calculate dynamic Y position for mask controls (below all parameter groups)
+    int circleMaskY = PARAM_GROUP_Y + 135;  // Reduced from 185 to position closer to parameter groups
+    
+    // Add a divider and label for the mask controls section
+    cp5.addTextlabel("maskTitle")
+      .setText("Circle Mask Settings:")
+      .setPosition(CONTROL_MARGIN, circleMaskY - 20)
+      .setColorValue(color(200))
+      .setFont(createFont("Arial", 12))
+      .moveTo(patternGroup);
+    
     cp5.addToggle("circleMaskToggle")
-      .setPosition(CONTROL_MARGIN + 100, 240)
+      .setPosition(CONTROL_MARGIN + 100, circleMaskY)
       .setSize(50, 15)
-      .setLabel("")
+      .setLabel("Enable")
       .setValue(patternModel.isCircleMaskMode())
       .moveTo(patternGroup);
     
     // Circle Mask Radius slider
     cp5.addSlider("circleMaskRadius")
-      .setPosition(CONTROL_MARGIN, 270)
+      .setPosition(CONTROL_MARGIN, circleMaskY + 30)
       .setSize(150, 15)
       .setRange(5, 32)
       .setValue(patternModel.getCircleMaskRadius())
@@ -166,11 +178,11 @@ class UIManager extends EventDispatcher {
     final int GROUP_HEIGHT = 100;
     final int GRID_GROUP_HEIGHT = 150;
     final int SLIDER_WIDTH = 150;
-    final int PARAM_Y = 120;
+    // Using class-level constant PARAM_GROUP_Y
     
     // Create concentric rings group
     concentricRingsGroup = cp5.addGroup("concentricRingsParams")
-      .setPosition(CONTROL_MARGIN, PARAM_Y)
+      .setPosition(CONTROL_MARGIN, PARAM_GROUP_Y)
       .setWidth(GROUP_WIDTH)
       .setBackgroundHeight(GROUP_HEIGHT)
       .setBackgroundColor(color(30, 30, 30, 100))
@@ -207,7 +219,7 @@ class UIManager extends EventDispatcher {
     
     // Create spiral group
     spiralGroup = cp5.addGroup("spiralParams")
-      .setPosition(CONTROL_MARGIN, PARAM_Y)
+      .setPosition(CONTROL_MARGIN, PARAM_GROUP_Y)
       .setWidth(GROUP_WIDTH)
       .setBackgroundHeight(GROUP_HEIGHT)
       .setBackgroundColor(color(30, 30, 30, 100))
@@ -235,7 +247,7 @@ class UIManager extends EventDispatcher {
     
     // Create grid group
     gridGroup = cp5.addGroup("gridParams")
-      .setPosition(CONTROL_MARGIN, PARAM_Y)
+      .setPosition(CONTROL_MARGIN, PARAM_GROUP_Y)
       .setWidth(GROUP_WIDTH)
       .setBackgroundHeight(GRID_GROUP_HEIGHT)
       .setBackgroundColor(color(30, 30, 30, 100))
@@ -281,7 +293,7 @@ class UIManager extends EventDispatcher {
     
     // Create center only group
     centerGroup = cp5.addGroup("centerParams")
-      .setPosition(CONTROL_MARGIN, PARAM_Y)
+      .setPosition(CONTROL_MARGIN, PARAM_GROUP_Y)
       .setWidth(GROUP_WIDTH)
       .setBackgroundHeight(GROUP_HEIGHT)
       .setBackgroundColor(color(30, 30, 30, 100))
@@ -305,7 +317,7 @@ class UIManager extends EventDispatcher {
    */
   private void setupControlGroup() {
     final int GROUP_WIDTH = INFO_PANEL_WIDTH - CONTROL_MARGIN * 2;
-    final int CONTROL_GROUP_HEIGHT = 250;
+    final int CONTROL_GROUP_HEIGHT = 270;  // Increased from 250 to accommodate the additional spacing
     final int BUTTON_WIDTH = (GROUP_WIDTH - CONTROL_MARGIN * 3) / 2;
     final int BUTTON_HEIGHT = 30;
     
@@ -386,12 +398,22 @@ class UIManager extends EventDispatcher {
       .setValue(true)
       .moveTo(controlGroup);
     
-    // Interval slider
-    buttonY += 40;
+    // Interval slider - add more spacing before this section
+    buttonY += 55;  // Increased from 40 to add 15 more pixels of space
     
+    // Added a text label for the interval slider section
+    cp5.addTextlabel("updateIntervalLabel")
+      .setText("Simulation Speed:")
+      .setPosition(CONTROL_MARGIN, buttonY)
+      .setColorValue(color(200))
+      .setFont(createFont("Arial", 12))
+      .moveTo(controlGroup);
+    buttonY += 20;
+    
+    // Made slider width consistent with other sliders (SLIDER_WIDTH = 150)
     cp5.addSlider("updateInterval")
       .setPosition(CONTROL_MARGIN, buttonY)
-      .setSize(GROUP_WIDTH - CONTROL_MARGIN * 2, 20)
+      .setSize(150, 15)  // Same size as other sliders (150x15)
       .setRange(100, 2000)
       .setValue(500)
       .setLabel("Update Interval (ms)")
